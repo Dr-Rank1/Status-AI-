@@ -121,6 +121,52 @@ V2 sessions will add:
 
 No sticky sessions: MRTR state lives in Redis/Postgres (`023_phase34_mcp_mrtr.sql`).
 
+## 10. Phase 35 — Temporal KG, 402 economies, WebRTC
+
+| Surface | Notes |
+|---------|-------|
+| Temporal RAG | `ContextEngine` + Neo4j schema in `docs/TEMPORAL_KNOWLEDGE_GRAPH.md` |
+| HTTP 402 | Paid `tools/call` via `mcpPaymentService`; ledger `GET /api/v2/ops/economy` |
+| WebRTC | `POST /api/v2/webrtc/session` + Socket.IO `webrtc_*` events |
+| Failover | `scripts/deploy_planetary_mesh.sh` (Ubuntu) |
+
+## 11. Phase 36 — ZK governance, CRDT, bio-adaptive, Raft
+
+| Surface | Notes |
+|---------|-------|
+| zk middleware | `X-ZK-Agent-Proof` + `zkAgentGovernanceMiddleware` |
+| CRDT | Flutter `CrdtSpatialStateManager` + `POST /api/v2/metaverse/crdt/merge` |
+| Bio-adaptive | `POST /api/v2/cognitive/modulate` → temperature / empathy / declutter |
+| Consensus | `raft-webrtc` + `scripts/deploy_consensus_mesh.sh` |
+
+## 12. Phase 37 — A2A, graphs, ToT, unified memory
+
+| Surface | Notes |
+|---------|-------|
+| A2A/ACP | `a2aProtocol.js` — cards, discover, `task/delegate` |
+| Graph | `graphOrchestrator.js` — cycles, checkpoints, HITL |
+| ToT | `treeOfThoughtsService.js` — parallel beam search |
+| Unified RAG | `unifiedMemoryService.js` — filter + re-rank; wired into ContextEngine |
+
+## 13. Phase 38 — Command Center, Gov-as-Code, zero-copy, kill switch
+
+| Surface | Notes |
+|---------|-------|
+| Dashboard | `/command-center` — handoffs, tokens, kill switch |
+| Governance | `governanceAsCodeMiddleware` + NIST AI RMF escalation |
+| Audit | Hash-chained `agent_audit_ledger` |
+| Zero-copy | `zeroCopyQueryService` in-place reads in ContextEngine |
+| Kill switch | `POST /api/v2/ops/kill-switch` freezes agents + escrow |
+
+## 14. Phase 39 — Holograms, Puppeteer, duplex voice, DAG quorum
+
+| Surface | Notes |
+|---------|-------|
+| Flutter OpenXR | `HolographicSwarmEmbodimentService` + `OpenXrRenderPacket` |
+| Puppeteer | `puppeteerOrchestratorMiddleware` — assemble/reconfigure/disband |
+| Voice | Full-duplex Socket.IO `voice_duplex_*` + bio prosody |
+| DAG quorum | `dagQuorumLedger.js` — 2/3 signatures, rogue quarantine |
+
 ---
 
-*Phase 30–34: V2 progresses scaffold → beta → GA → context/MCP → stateless serverless swarms.*
+*Phase 30–39: V2 spans GA through spatially embodied, quorum-secured agent swarms.*

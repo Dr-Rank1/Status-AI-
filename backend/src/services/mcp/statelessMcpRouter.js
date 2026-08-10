@@ -18,6 +18,7 @@ import {
   resumeFromHuman,
   getMrtrState,
 } from './mrtrStateService.js';
+import { settleMcpToolPayment } from './mcpPaymentService.js';
 
 export const MCP_PROTOCOL_VERSION = '2026-07-28';
 
@@ -93,15 +94,15 @@ export async function dispatchMcp({
           resources: { subscribe: false, cacheable: true },
           prompts: {},
           mrtr: { humanInTheLoop: true },
-          experimental: { serverlessSwarm: true },
+          experimental: { serverlessSwarm: true, http402: true, temporalKg: true },
         },
         serverInfo: {
           name: 'status-mcp-gateway',
-          version: '34.0.0',
+          version: '35.0.0',
           mode: 'stateless',
         },
         instructions:
-          'Stateless MCP: route every call with Mcp-Method / Mcp-Name headers. Use mrtr/* for HITL.',
+          'Stateless MCP: route every call with Mcp-Method / Mcp-Name headers. Use mrtr/* for HITL. Paid tools may return HTTP 402.',
       };
 
     case 'ping':
@@ -126,6 +127,17 @@ export async function dispatchMcp({
         const scopeHint = toolScopeFor(toolName);
         if (scopeHint) assertAgentScope(identity, scopeHint);
       }
+
+      const payment = await settleMcpToolPayment({
+        toolName,
+        payerCharacterId: params.payerCharacterId ?? identity?.characterId ?? params.characterId,
+        payeeCharacterId: params.payeeCharacterId ?? null,
+        payerRole: identity?.role ?? params.payerRole ?? null,
+        payerIdentity: identity,
+        requestId,
+        skipPayment: Boolean(params.skipPayment),
+      });
+
       const args = params.arguments ?? params.args ?? {};
       const result = await executeAgentTool(toolName, args, {
         userId: user?.id ?? identity?.userId,
@@ -133,7 +145,11 @@ export async function dispatchMcp({
         threadId: params.threadId,
         mcpIdentity: identity,
       });
-      return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+        _meta: { payment },
+      };
     }
 
     case 'resources/list':
@@ -300,6 +316,11 @@ export function mcpStatelessRouterMiddleware() {
         result,
       });
     } catch (err) {
+      if (err?.status === 402 && err.payment) {
+        res.setHeader('Payment-Required', err.payment.accepts?.join(', ') ?? 'status-token/token');
+        res.setHeader('Mcp-Payment-Amount', String(err.payment.amount ?? ''));
+        res.setHeader('Mcp-Payment-Currency', err.payment.currency ?? 'token');
+      }
       next(err);
     }
   };

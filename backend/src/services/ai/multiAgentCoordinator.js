@@ -8,6 +8,10 @@ import { executeAgentTool } from './agentTools.js';
 import { withAgentIdentity, assertAgentScope } from '../mcp/agentIdentityService.js';
 import { logger } from '../../utils/logger.js';
 import { hireMicroInferenceNode } from '../agents/agentEscrowService.js';
+import { assertAgentsNotKilled } from '../security/globalKillSwitchService.js';
+import { appendAuditEvent } from '../security/immutableAuditLedger.js';
+import { recordHandoff, recordAllocation } from '../ops/agentCommandCenterService.js';
+import { initializeAgentWithGovernance } from '../governance/governanceAsCode.js';
 
 const COORDINATOR_MODES = new Set(['dm', 'group_dm', 'post_reply']);
 
@@ -80,12 +84,33 @@ async function runTransactionSubagent({ character, context, mcpIdentity }) {
  * Coordinator runs research + tools in parallel, then dialogue synthesizes.
  */
 export async function runMultiAgentCoordinator(args) {
+  assertAgentsNotKilled();
   const plan = planSubagents(args);
   logger.info(`[MultiAgent] plan=${plan.join('+')} mode=${args.mode} character=${args.character?.handle}`);
+
+  for (const role of plan) {
+    initializeAgentWithGovernance({
+      agentRole: role === 'transaction' ? 'transaction' : role,
+      characterId: args.character?.id,
+      userId: args.user?.id,
+    });
+    recordAllocation({ agentId: `status.${role}`, task: args.incomingMessage, status: 'assigned' });
+  }
+
+  await appendAuditEvent({
+    type: 'agent.plan',
+    actor: 'coordinator',
+    action: 'multi_agent_run',
+    decision: 'start',
+    metadata: { plan },
+    characterId: args.character?.id,
+    userId: args.user?.id,
+  });
 
   const parallelAgents = plan.filter((a) => a !== 'dialogue');
   const parallelTasks = parallelAgents.map((agent) =>
     withAgentIdentity(agent === 'transaction' ? 'transaction' : agent, args, async ({ identity }) => {
+      recordHandoff({ from: 'coordinator', to: `status.${agent}`, task: args.incomingMessage });
       switch (agent) {
         case 'research':
           return runResearchSubagent({ ...args, mcpIdentity: identity });

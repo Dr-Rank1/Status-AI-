@@ -131,6 +131,10 @@ async function start() {
       const { initKnowledgeMesh } = await import('./services/knowledgeMesh/knowledgeMeshService.js');
       const mesh = await initKnowledgeMesh();
       logger.info(`[KnowledgeMesh] backend=${mesh.backend}`);
+      if (mesh.backend === 'neo4j') {
+        const { ensureTemporalGraphSchema } = await import('./services/context/temporalKnowledgeGraph.js');
+        await ensureTemporalGraphSchema();
+      }
     } catch (err) {
       logger.warn('[KnowledgeMesh] init skipped:', err.message);
     }

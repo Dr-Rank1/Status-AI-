@@ -21,6 +21,11 @@ class RealtimeService {
   final _liveChatController = StreamController<Map<String, dynamic>>.broadcast();
   final _liveTtsController = StreamController<Map<String, dynamic>>.broadcast();
   final _liveSpeakingController = StreamController<Map<String, dynamic>>.broadcast();
+  final _webrtcSignalController = StreamController<Map<String, dynamic>>.broadcast();
+  final _webrtcMultimodalController = StreamController<Map<String, dynamic>>.broadcast();
+  final _swarmHologramController = StreamController<Map<String, dynamic>>.broadcast();
+  final _voiceDuplexChunkController = StreamController<Map<String, dynamic>>.broadcast();
+  final _voiceDuplexInterruptController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Post> get onNewPost => _newPostController.stream;
   Stream<MessagePayload> get onNewMessage => _newMessageController.stream;
@@ -31,6 +36,11 @@ class RealtimeService {
   Stream<Map<String, dynamic>> get onLiveChat => _liveChatController.stream;
   Stream<Map<String, dynamic>> get onLiveTtsChunk => _liveTtsController.stream;
   Stream<Map<String, dynamic>> get onLiveAiSpeaking => _liveSpeakingController.stream;
+  Stream<Map<String, dynamic>> get onWebrtcSignal => _webrtcSignalController.stream;
+  Stream<Map<String, dynamic>> get onWebrtcMultimodal => _webrtcMultimodalController.stream;
+  Stream<Map<String, dynamic>> get onSwarmHologram => _swarmHologramController.stream;
+  Stream<Map<String, dynamic>> get onVoiceDuplexChunk => _voiceDuplexChunkController.stream;
+  Stream<Map<String, dynamic>> get onVoiceDuplexInterrupt => _voiceDuplexInterruptController.stream;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -98,6 +108,31 @@ class RealtimeService {
           _liveSpeakingController.add(Map<String, dynamic>.from(data));
         }
       })
+      ..on('webrtc_signal', (data) {
+        if (data is Map) {
+          _webrtcSignalController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('webrtc_multimodal', (data) {
+        if (data is Map) {
+          _webrtcMultimodalController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('swarm_hologram_event', (data) {
+        if (data is Map) {
+          _swarmHologramController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('voice_duplex_chunk', (data) {
+        if (data is Map) {
+          _voiceDuplexChunkController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('voice_duplex_interrupt', (data) {
+        if (data is Map) {
+          _voiceDuplexInterruptController.add(Map<String, dynamic>.from(data));
+        }
+      })
       ..connect();
   }
 
@@ -112,6 +147,53 @@ class RealtimeService {
   void leaveLive(String sessionId) {
     _socket?.emit('leave_live', sessionId);
   }
+
+  void joinWebrtc(String sessionId) {
+    _socket?.emit('join_webrtc', sessionId);
+  }
+
+  void leaveWebrtc(String sessionId) {
+    _socket?.emit('leave_webrtc', sessionId);
+  }
+
+  void emitWebrtcSignal({
+    required String sessionId,
+    required String type,
+    dynamic payload,
+  }) {
+    _socket?.emit('webrtc_signal', {
+      'sessionId': sessionId,
+      'type': type,
+      'payload': payload,
+    });
+  }
+
+  void joinSwarmHologram([String? topologyId]) {
+    _socket?.emit('join_swarm_hologram', topologyId);
+  }
+
+  void leaveSwarmHologram([String? topologyId]) {
+    _socket?.emit('leave_swarm_hologram', topologyId);
+  }
+
+  void joinVoiceDuplex(String sessionId) {
+    _socket?.emit('join_voice_duplex', sessionId);
+  }
+
+  void emitVoiceBargeIn({required String sessionId, double energy = 0.7}) {
+    _socket?.emit('voice_duplex_barge_in', {'sessionId': sessionId, 'energy': energy});
+  }
+
+  void emitVoiceUserChunk({required String sessionId, String? pcmBase64, String? textDelta}) {
+    _socket?.emit('voice_duplex_user_chunk', {
+      'sessionId': sessionId,
+      if (pcmBase64 != null) 'pcmBase64': pcmBase64,
+      if (textDelta != null) 'textDelta': textDelta,
+    });
+  }
+
+  /// Expose socket for advanced WebRTC peers (LiveKit / flutter_webrtc adapters).
+  io.Socket? get socket => _socket;
 
   void disconnect() {
     _socket?.dispose();
@@ -129,5 +211,10 @@ class RealtimeService {
     _liveChatController.close();
     _liveTtsController.close();
     _liveSpeakingController.close();
+    _webrtcSignalController.close();
+    _webrtcMultimodalController.close();
+    _swarmHologramController.close();
+    _voiceDuplexChunkController.close();
+    _voiceDuplexInterruptController.close();
   }
 }

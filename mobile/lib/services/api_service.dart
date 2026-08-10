@@ -303,6 +303,114 @@ class ApiService {
     return body['data'] as Map<String, dynamic>;
   }
 
+  /// Phase 35 — create multi-modal WebRTC avatar session (signaling via Socket.IO).
+  Future<Map<String, dynamic>> createV2WebrtcSession({
+    String? characterId,
+    List<String> modalities = const ['avatar3d', 'spatial_audio', 'text'],
+    String? threadId,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/webrtc/session');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (characterId != null) 'characterId': characterId,
+        'modalities': modalities,
+        if (threadId != null) 'threadId': threadId,
+      }),
+    );
+    _throwIfError(response, 'Failed to create WebRTC session');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  /// Phase 36 — bio-adaptive cognitive modulation.
+  Future<Map<String, dynamic>> modulateV2Cognitive({
+    Map<String, dynamic>? bci,
+    Map<String, dynamic>? biometrics,
+    double? baseTemperature,
+    double? baseEmpathy,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/cognitive/modulate');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (bci != null) 'bci': bci,
+        if (biometrics != null) 'biometrics': biometrics,
+        if (baseTemperature != null) 'baseTemperature': baseTemperature,
+        if (baseEmpathy != null) 'baseEmpathy': baseEmpathy,
+      }),
+    );
+    _throwIfError(response, 'Cognitive modulate failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  /// Phase 36 — publish CRDT spatial document to metaverse peers.
+  Future<Map<String, dynamic>> publishV2CrdtDocument({
+    required Map<String, dynamic> document,
+    String? syncToken,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/metaverse/crdt/merge');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'document': document,
+        if (syncToken != null) 'syncToken': syncToken,
+      }),
+    );
+    _throwIfError(response, 'CRDT merge failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  /// Phase 39 — cognitive full-duplex voice session.
+  Future<Map<String, dynamic>> createV2DuplexVoiceSession({
+    String? characterId,
+    Map<String, dynamic>? bci,
+    Map<String, dynamic>? biometrics,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/voice/duplex/session');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (characterId != null) 'characterId': characterId,
+        if (bci != null) 'bci': bci,
+        if (biometrics != null) 'biometrics': biometrics,
+      }),
+    );
+    _throwIfError(response, 'Duplex voice session failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateV2DuplexProsody({
+    required String sessionId,
+    Map<String, dynamic>? bci,
+    Map<String, dynamic>? biometrics,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/voice/duplex/$sessionId/prosody');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (bci != null) 'bci': bci,
+        if (biometrics != null) 'biometrics': biometrics,
+      }),
+    );
+    _throwIfError(response, 'Prosody update failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
   Future<List<Post>> fetchPosts({int limit = 20, String? fandom}) async {
     if (!await isOnline()) {
       final cached = OfflineCacheService.loadFeed();

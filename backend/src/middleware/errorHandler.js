@@ -57,6 +57,7 @@ export function errorHandler(err, req, res, _next) {
     message: err.message ?? 'Something went wrong',
     ...(err.categories && { categories: err.categories }),
     ...(err.retryAfter && { retryAfter: err.retryAfter }),
+    ...(err.payment && { payment: err.payment }),
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 }

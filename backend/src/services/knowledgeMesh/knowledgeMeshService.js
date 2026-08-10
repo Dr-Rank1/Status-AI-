@@ -160,6 +160,11 @@ export function getMeshBackend() {
   return neo4jDriver ? 'neo4j' : 'postgres';
 }
 
+/** Phase 35 — share driver with temporal knowledge graph */
+export function getNeo4jDriver() {
+  return neo4jDriver;
+}
+
 export async function shutdownKnowledgeMesh() {
   if (neo4jDriver) {
     await neo4jDriver.close();
