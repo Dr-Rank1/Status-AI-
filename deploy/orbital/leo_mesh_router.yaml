@@ -1,0 +1,32 @@
+# Phase 42 — LEO orbital satellite edge mesh (demo constellation)
+
+# Satellite catalog used by leoOrbitalMeshRouter.js
+satellites:
+  - id: leo-alpha
+    altitude_km: 550
+    inclination_deg: 53
+    phase_offset_deg: 0
+    ground_stations: [gs-atlantic, gs-pacific]
+  - id: leo-beta
+    altitude_km: 550
+    inclination_deg: 53
+    phase_offset_deg: 120
+    ground_stations: [gs-atlantic, gs-arctic]
+  - id: leo-gamma
+    altitude_km: 600
+    inclination_deg: 97
+    phase_offset_deg: 240
+    ground_stations: [gs-pacific, gs-equatorial]
+
+routing:
+  protocol: dtn-bundle-rfc9171
+  handover: dynamic
+  doppler_compensation: true
+  default_rf_hz: 20000000000
+  maritime_prefer: [gs-atlantic, gs-pacific]
+  bundle_ttl_sec: 7200
+
+sync:
+  edge_to_sat: custody_transfer
+  sat_to_ground: custody_transfer
+  reconcile_on_pass: true

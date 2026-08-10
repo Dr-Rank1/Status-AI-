@@ -15,6 +15,7 @@ export default function HomePage() {
           <li><Link href="/moderation">Moderate users</Link></li>
           <li><Link href="/agent-economy">Agent Economy ledger</Link></li>
           <li><Link href="/command-center">Agentic Command Center</Link></li>
+          <li><Link href="/global-brain">Planetary Global Brain</Link></li>
         </ul>
       </div>
       <div className="card">

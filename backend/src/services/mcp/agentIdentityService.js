@@ -24,9 +24,17 @@ export const AGENT_ROLES = {
   },
   tools: {
     role: 'tools',
-    scopes: ['calendar:write', 'links:write', 'sandbox:execute'],
+    scopes: [
+      'calendar:write',
+      'links:write',
+      'sandbox:execute',
+      'robot:sense',
+      'robot:actuate',
+      'robot:embody',
+      'compute:hybrid',
+    ],
     dbPermissions: ['SELECT'],
-    description: 'Calendar / link / sandbox tools',
+    description: 'Calendar / link / sandbox / ROS2 / hybrid-compute tools',
   },
   transaction: {
     role: 'transaction',

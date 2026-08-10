@@ -20,6 +20,10 @@ import {
   queryLiveSignalsInPlace,
   formatZeroCopyPromptBlock,
 } from './zeroCopyQueryService.js';
+import { distillInfiniteContext } from './contextDistillationService.js';
+import { listRecentTelemetry, formatRoboticsPromptBlock } from '../robotics/ros2McpBridge.js';
+import { optimizeRagPath, tuneDistillationHyperparams } from '../quantum/quantumHybridSolver.js';
+import { observeAlignmentTurn } from '../alignment/syntheticAlignmentBench.js';
 
 const BASE_MIN_SCORE = parseFloat(process.env.MEMORY_MIN_SCORE ?? '0.72');
 const BASE_TOP_K = parseInt(process.env.MEMORY_TOP_K ?? '5', 10);
@@ -228,6 +232,95 @@ export class ContextEngine {
       enriched.zeroCopyPromptBlock = formatZeroCopyPromptBlock(live);
     } catch (err) {
       logger.warn(`[ContextEngine] zero-copy skipped: ${err.message}`);
+    }
+
+    // Phase 40 — exascale distillation (infinite-window compression)
+    if (process.env.EXASCALE_RAG_ENABLED !== 'false') {
+      try {
+        let distillOpts = {};
+        if (process.env.QUANTUM_DISTILL_TUNE === 'true') {
+          const tuned = await tuneDistillationHyperparams({
+            samples: recentMessages,
+          });
+          distillOpts = tuned.hyperparams ?? {};
+          enriched.quantumDistillTune = tuned;
+        }
+        const distilled = await distillInfiniteContext({
+          userId: user.id,
+          characterId: character.id,
+          queryText: userMessageContent,
+          recentMessages,
+          episodicEvents: globalNarrative ? [globalNarrative] : [],
+          ...(distillOpts.tokenBudget ? { tokenBudget: distillOpts.tokenBudget } : {}),
+        });
+        enriched.exascaleMemory = distilled;
+        enriched.exascalePromptBlock = distilled.promptBlock;
+
+        // Phase 41 — hybrid RAG pathfinding over distilled clusters
+        if (process.env.QUANTUM_RAG_PATHFINDING !== 'false' && distilled.items?.length) {
+          try {
+            const path = await optimizeRagPath({
+              nodes: distilled.items,
+              queryText: userMessageContent,
+              topK: Math.min(rag.topK, distilled.items.length),
+            });
+            enriched.quantumRagPath = path;
+            if (path.path?.length) {
+              enriched.exascalePromptBlock = [
+                distilled.promptBlock,
+                'Quantum-optimized RAG path:',
+                ...path.path.map((n, i) => `  ${i + 1}. ${String(n.content ?? '').slice(0, 120)}`),
+              ].join('\n');
+            }
+          } catch (err) {
+            logger.warn(`[ContextEngine] quantum RAG path skipped: ${err.message}`);
+          }
+        }
+
+        if (enriched.exascalePromptBlock || distilled.promptBlock) {
+          enriched.unifiedMemoryPromptBlock = [
+            enriched.unifiedMemoryPromptBlock,
+            enriched.exascalePromptBlock ?? distilled.promptBlock,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+        }
+      } catch (err) {
+        logger.warn(`[ContextEngine] exascale distill skipped: ${err.message}`);
+      }
+    }
+
+    // Phase 41 — embodied robotics telemetry into context
+    if (process.env.ROS2_CONTEXT_INJECT !== 'false') {
+      try {
+        const telemetry = listRecentTelemetry({ limit: 5 });
+        if (telemetry.length) {
+          enriched.roboticsTelemetry = telemetry;
+          enriched.roboticsPromptBlock = formatRoboticsPromptBlock(telemetry);
+          enriched.unifiedMemoryPromptBlock = [
+            enriched.unifiedMemoryPromptBlock,
+            enriched.roboticsPromptBlock,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+        }
+      } catch (err) {
+        logger.warn(`[ContextEngine] ROS2 telemetry skipped: ${err.message}`);
+      }
+    }
+
+    // Phase 41 — light alignment observe on inbound user turn (non-blocking metadata)
+    if (process.env.ALIGNMENT_INLINE_OBSERVE === 'true' && userMessageContent) {
+      try {
+        enriched.alignmentObserve = observeAlignmentTurn({
+          agentId: 'context-engine',
+          characterId: character.id,
+          prompt: userMessageContent,
+          response: '',
+        });
+      } catch (err) {
+        logger.warn(`[ContextEngine] alignment observe skipped: ${err.message}`);
+      }
     }
 
     logger.info(

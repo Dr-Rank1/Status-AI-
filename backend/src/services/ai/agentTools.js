@@ -81,6 +81,89 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'ros2_read_sensors',
+      description:
+        'Read recent ROS 2 lidar / depth / pose telemetry for embodied agents (MCP robotics bridge).',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['lidar', 'depth', 'pose'], description: 'Filter sensor kind' },
+          limit: { type: 'number', default: 5 },
+          ingest: {
+            type: 'object',
+            description: 'Optional telemetry sample to buffer before read',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'ros2_publish_cmd',
+      description:
+        'Queue a sandboxed ROS 2 cmd_vel / actuation command for a physical embodiment (clamped, audited).',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'stop | move | turn | custom' },
+          linear: {
+            type: 'object',
+            properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          },
+          angular: {
+            type: 'object',
+            properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          },
+          durationSec: { type: 'number', default: 1 },
+          embodimentId: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'ros2_bind_embodiment',
+      description:
+        'Bind a spatial avatar identity to a ROS 2 robot namespace for physical embodiment handoff.',
+      parameters: {
+        type: 'object',
+        properties: {
+          avatarId: { type: 'string' },
+          robotNamespace: { type: 'string' },
+          capabilities: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['avatarId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'quantum_hybrid_optimize',
+      description:
+        'Run quantum-classical hybrid optimization (annealing / optional Qiskit|PennyLane) for agent allocation or RAG pathfinding.',
+      parameters: {
+        type: 'object',
+        properties: {
+          problem: {
+            type: 'string',
+            enum: ['resource_allocation', 'rag_pathfinding', 'distill_hparams'],
+          },
+          agents: { type: 'array', items: { type: 'object' } },
+          resources: { type: 'array', items: { type: 'object' } },
+          nodes: { type: 'array', items: { type: 'object' } },
+          queryText: { type: 'string' },
+          topK: { type: 'number' },
+        },
+        required: ['problem'],
+      },
+    },
+  },
 ];
 
 export async function executeAgentTool(toolName, args, ctx = {}) {
@@ -103,6 +186,36 @@ export async function executeAgentTool(toolName, args, ctx = {}) {
       case 'run_sandboxed_script':
         result = await executeSandboxedScript(args, ctx);
         break;
+      case 'ros2_read_sensors':
+      case 'ros2_publish_cmd':
+      case 'ros2_bind_embodiment': {
+        const { executeRos2McpTool } = await import('../robotics/ros2McpBridge.js');
+        result = await executeRos2McpTool(toolName, args, ctx);
+        break;
+      }
+      case 'quantum_hybrid_optimize': {
+        const {
+          allocateAgentResources,
+          optimizeRagPath,
+          tuneDistillationHyperparams,
+        } = await import('../quantum/quantumHybridSolver.js');
+        if (args.problem === 'resource_allocation') {
+          result = await allocateAgentResources({
+            agents: args.agents ?? [],
+            resources: args.resources ?? [],
+          });
+        } else if (args.problem === 'rag_pathfinding') {
+          result = await optimizeRagPath({
+            nodes: args.nodes ?? [],
+            queryText: args.queryText ?? '',
+            topK: args.topK ?? 5,
+          });
+        } else {
+          result = await tuneDistillationHyperparams({});
+        }
+        result = { success: true, ...result };
+        break;
+      }
       default:
         throw new Error(`Unknown tool: ${toolName}`);
     }

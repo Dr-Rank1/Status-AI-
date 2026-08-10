@@ -39,6 +39,10 @@ function toolsForRole(agentRole) {
     if (name === 'create_calendar_event') return scopes.has('calendar:write');
     if (name === 'generate_external_link') return scopes.has('links:write');
     if (name === 'run_sandboxed_script') return scopes.has('sandbox:execute');
+    if (name === 'ros2_read_sensors') return scopes.has('robot:sense');
+    if (name === 'ros2_publish_cmd') return scopes.has('robot:actuate');
+    if (name === 'ros2_bind_embodiment') return scopes.has('robot:embody');
+    if (name === 'quantum_hybrid_optimize') return scopes.has('compute:hybrid');
     return true;
   });
 }

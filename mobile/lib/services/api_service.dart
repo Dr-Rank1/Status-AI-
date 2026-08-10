@@ -411,6 +411,51 @@ class ApiService {
     return body['data'] as Map<String, dynamic>;
   }
 
+  /// Phase 40 — ambient fabric proactive suggestions (no wake word).
+  Future<Map<String, dynamic>> inferV2AmbientSuggestions({
+    required String transcript,
+    String? activity,
+    String? locationLabel,
+    bool calendarBusy = false,
+    String? recentIntent,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/ambient/infer');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'transcript': transcript,
+        if (activity != null) 'activity': activity,
+        if (locationLabel != null) 'locationLabel': locationLabel,
+        'calendarBusy': calendarBusy,
+        if (recentIntent != null) 'recentIntent': recentIntent,
+      }),
+    );
+    _throwIfError(response, 'Ambient infer failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> acceptV2AmbientSuggestion(
+    Map<String, dynamic> suggestion, {
+    String? characterId,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/ambient/accept');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'suggestion': suggestion,
+        if (characterId != null) 'characterId': characterId,
+      }),
+    );
+    _throwIfError(response, 'Ambient accept failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
   Future<List<Post>> fetchPosts({int limit = 20, String? fandom}) async {
     if (!await isOnline()) {
       final cached = OfflineCacheService.loadFeed();

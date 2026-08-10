@@ -1,0 +1,47 @@
+// Phase 40 — iOS ambient bridge stub (register from AppDelegate when ios Runner is present).
+// MethodChannel: com.status/ambient
+//
+// import Flutter
+// import UIKit
+//
+// public class AmbientFabricPlugin: NSObject, FlutterPlugin {
+//   private var timer: Timer?
+//   private var channel: FlutterMethodChannel?
+//
+//   public static func register(with registrar: FlutterPluginRegistrar) {
+//     let instance = AmbientFabricPlugin()
+//     instance.channel = FlutterMethodChannel(
+//       name: "com.status/ambient",
+//       binaryMessenger: registrar.messenger()
+//     )
+//     registrar.addMethodCallDelegate(instance, channel: instance.channel!)
+//   }
+//
+//   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+//     switch call.method {
+//     case "startAmbient":
+//       timer?.invalidate()
+//       timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+//         self?.channel?.invokeMethod("onAmbientTranscript", arguments: [
+//           "text": "ambient context pulse",
+//           "platform": "ios",
+//           "wakeWordRequired": false
+//         ])
+//       }
+//       result(true)
+//     case "stopAmbient":
+//       timer?.invalidate()
+//       timer = nil
+//       result(true)
+//     default:
+//       result(FlutterMethodNotImplemented)
+//     }
+//   }
+// }
+
+import Foundation
+
+@objc public class AmbientFabricBridgeDoc: NSObject {
+  @objc public static let channelName = "com.status/ambient"
+  @objc public static let wakeWordRequired = false
+}
