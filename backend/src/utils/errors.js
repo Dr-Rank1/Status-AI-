@@ -28,3 +28,17 @@ export function contentModerationError(message, categories = []) {
   err.categories = categories;
   return err;
 }
+
+export function serviceUnavailable(message, code = 'SERVICE_UNAVAILABLE', retryAfterSec = 30) {
+  const err = new AppError(message, 503, code);
+  err.retryAfter = retryAfterSec;
+  return err;
+}
+
+export function circuitOpen(retryAfterSec = 30) {
+  return serviceUnavailable(
+    'Service temporarily degraded — please retry shortly',
+    'CIRCUIT_OPEN',
+    retryAfterSec,
+  );
+}

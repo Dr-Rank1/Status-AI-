@@ -11,6 +11,8 @@ import {
   createPostSchema,
   refillEnergySchema,
   replyToPostSchema,
+  feedbackSchema,
+  e2eeRegisterKeySchema,
 } from '../validation/schemas.js';
 import { uploadImage as multerUpload, uploadAudio as multerAudio } from '../config/upload.js';
 import * as auth from '../controllers/authController.js';
@@ -27,14 +29,18 @@ import * as groups from '../controllers/groupsController.js';
 import * as live from '../controllers/liveStreamController.js';
 import * as voice from '../controllers/voiceController.js';
 import * as spatial from '../controllers/spatialController.js';
+import * as feedback from '../controllers/feedbackController.js';
+import * as e2ee from '../controllers/e2eeController.js';
 import { spatialPrivacyMiddleware } from '../middleware/spatialPrivacy.js';
 import { live, ready } from '../controllers/healthController.js';
+import { regionStatus } from '../middleware/region.js';
 
 const router = Router();
 
 router.get('/health', live);
 router.get('/health/live', live);
 router.get('/health/ready', asyncHandler(ready));
+router.get('/health/region', asyncHandler(regionStatus));
 
 // Auth (public) — rate limited + validated
 router.post('/auth/register', authRateLimiter, validateBody(registerSchema), asyncHandler(auth.register));
@@ -92,6 +98,11 @@ router.get('/energy', asyncHandler(energy.getMyEnergyState));
 router.post('/energy/refill', paymentRateLimiter, validateBody(refillEnergySchema), asyncHandler(energy.refillEnergy));
 
 router.post('/analytics/events', asyncHandler(analytics.ingestClientEvents));
+
+router.post('/feedback', validateBody(feedbackSchema), asyncHandler(feedback.submitFeedback));
+
+router.post('/e2ee/keys', validateBody(e2eeRegisterKeySchema), asyncHandler(e2ee.registerKey));
+router.get('/e2ee/keys', asyncHandler(e2ee.getKeys));
 
 router.get('/live/sessions', asyncHandler(live.listSessions));
 router.post('/live/sessions', asyncHandler(live.createSession));

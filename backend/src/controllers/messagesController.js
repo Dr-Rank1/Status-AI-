@@ -3,6 +3,7 @@ import { ENERGY_COSTS, spendEnergy } from '../services/energyService.js';
 import { isAiPending, consumeInteraction, queueDmAiReply } from '../services/messageQueueService.js';
 import { validationError } from '../utils/errors.js';
 import { logEvent } from '../services/analyticsService.js';
+import { requireContentModeration } from '../middleware/moderation.js';
 
 export async function listThreads(req, res) {
   const userId = req.user.id;
@@ -58,10 +59,16 @@ export async function getThreadMessages(req, res) {
   }
 
   const { rows } = await query(
-    `SELECT id, sender_type, content, is_read, created_at
+    `SELECT id, sender_type, content, is_read, created_at,
+            is_encrypted, ciphertext, encryption_meta
      FROM dm_messages
      WHERE thread_id = $1
      ORDER BY created_at ASC`,
+    [threadId]
+  );
+
+  const threadMeta = await query(
+    `SELECT character_id FROM dm_threads WHERE id = $1`,
     [threadId]
   );
 
@@ -72,6 +79,7 @@ export async function getThreadMessages(req, res) {
     meta: {
       aiPending: isAiPending(threadId),
       interaction: pending,
+      characterId: threadMeta.rows[0]?.character_id ?? null,
     },
   });
 }
@@ -115,17 +123,24 @@ export async function getOrCreateThread(req, res) {
   });
 }
 
-import { requireContentModeration } from '../middleware/moderation.js';
-
 export async function sendMessage(req, res) {
-  const { characterId, content } = req.body;
+  const {
+    characterId,
+    content,
+    encrypted = false,
+    ciphertext,
+    encryptionMeta,
+    contentPreview,
+  } = req.body;
   const userId = req.user.id;
 
-  if (!characterId || !content?.trim()) {
-    throw validationError('characterId and content are required');
+  if (!characterId) {
+    throw validationError('characterId is required');
   }
 
-  await requireContentModeration({ userId, text: content });
+  if (!encrypted) {
+    await requireContentModeration({ userId, text: content });
+  }
 
   const characterCheck = await query(
     `SELECT id FROM ai_characters WHERE id = $1 AND is_active = TRUE`,
@@ -135,6 +150,10 @@ export async function sendMessage(req, res) {
   if (characterCheck.rows.length === 0) {
     return res.status(404).json({ error: 'Character not found' });
   }
+
+  const storedContent = encrypted
+    ? (contentPreview?.trim() || '[Encrypted message]')
+    : content.trim();
 
   const client = await pool.connect();
   let threadId;
@@ -164,10 +183,20 @@ export async function sendMessage(req, res) {
     }
 
     const inserted = await client.query(
-      `INSERT INTO dm_messages (thread_id, sender_type, content)
-       VALUES ($1, 'user', $2)
-       RETURNING id, sender_type, content, is_read, created_at`,
-      [threadId, content.trim()]
+      `INSERT INTO dm_messages (
+         thread_id, sender_type, content,
+         is_encrypted, ciphertext, encryption_meta
+       )
+       VALUES ($1, 'user', $2, $3, $4, $5)
+       RETURNING id, sender_type, content, is_read, created_at,
+                 is_encrypted, ciphertext, encryption_meta`,
+      [
+        threadId,
+        storedContent,
+        encrypted,
+        encrypted ? ciphertext : null,
+        encrypted ? JSON.stringify(encryptionMeta) : null,
+      ]
     );
     userMessage = inserted.rows[0];
 
@@ -185,17 +214,21 @@ export async function sendMessage(req, res) {
 
   client.release();
 
-  queueDmAiReply({
-    user: req.user,
-    characterId,
-    threadId,
-    userMessageContent: content.trim(),
-  });
+  const aiPending = !encrypted;
+
+  if (aiPending) {
+    queueDmAiReply({
+      user: req.user,
+      characterId,
+      threadId,
+      userMessageContent: content.trim(),
+    });
+  }
 
   await logEvent({
     userId,
     eventType: 'dm_sent',
-    metadata: { threadId, characterId },
+    metadata: { threadId, characterId, encrypted },
   });
   await logEvent({
     userId,
@@ -209,6 +242,6 @@ export async function sendMessage(req, res) {
     energy: energyResult.state,
     spent: energyResult.spent,
     costs: ENERGY_COSTS,
-    aiPending: true,
+    aiPending,
   });
 }

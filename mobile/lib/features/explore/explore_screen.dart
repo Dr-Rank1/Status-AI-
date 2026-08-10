@@ -10,6 +10,7 @@ import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
 import '../../utils/responsive_layout.dart';
 import '../../widgets/character_3d_viewer.dart';
+import '../../widgets/gated_character_3d_viewer.dart';
 import '../characters/character_creator_screen.dart';
 import '../live/live_hub_screen.dart';
 import '../live/live_video_screen.dart';
@@ -278,7 +279,7 @@ class ExploreScreenState extends State<ExploreScreen> {
                             if (ResponsiveLayout.isDesktop(context))
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
-                                child: Character3DViewer(
+                                child: GatedCharacter3DViewer(
                                   modelUrl: Character3DAssets.defaultModel,
                                   config: const Character3DConfig(
                                     height: 280,
@@ -357,7 +358,7 @@ class _CharacterCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Character3DViewer(
+            GatedCharacter3DViewer(
               modelUrl: Character3DAssets.forCharacter(
                 modelUrl: character.model3dUrl,
                 handle: character.handle,

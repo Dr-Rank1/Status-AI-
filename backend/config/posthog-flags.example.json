@@ -1,0 +1,42 @@
+{
+  "description": "Example PostHog feature flags for Status (create these in PostHog → Feature Flags)",
+  "flags": [
+    {
+      "key": "enable-3d-avatars",
+      "type": "boolean",
+      "default": false,
+      "description": "Flutter client — show interactive GLB 3D character viewers on Explore/Profile"
+    },
+    {
+      "key": "force-gemini-dm",
+      "type": "boolean",
+      "default": false,
+      "description": "Backend — route all DM/group DM LLM calls to Gemini regardless of context depth"
+    },
+    {
+      "key": "force-anthropic-dm",
+      "type": "boolean",
+      "default": false,
+      "description": "Backend — route all DM/group DM LLM calls to Anthropic Claude"
+    },
+    {
+      "key": "force-gemini-feed",
+      "type": "boolean",
+      "default": false,
+      "description": "Backend — route feed replies and autonomous posts to Gemini"
+    },
+    {
+      "key": "force-anthropic-feed",
+      "type": "boolean",
+      "default": false,
+      "description": "Backend — route feed generation to Anthropic"
+    },
+    {
+      "key": "disable-ai-providers",
+      "type": "boolean",
+      "default": false,
+      "description": "Backend kill-switch — fall back to mock AI provider instantly"
+    }
+  ],
+  "telemetry_note": "AI events include $feature/<flag_key> properties from evaluateFlags() for variant attribution"
+}

@@ -103,6 +103,7 @@ class ReplyResult {
     this.aiProvider,
     this.aiPending = false,
     this.user,
+    this.queued = false,
   });
 
   final EnergyState energy;
@@ -110,4 +111,5 @@ class ReplyResult {
   final String? aiProvider;
   final bool aiPending;
   final SessionUser? user;
+  final bool queued;
 }

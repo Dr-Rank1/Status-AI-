@@ -68,7 +68,24 @@ export async function spendEnergy(userId, action, client = null) {
     throw insufficientEnergy(action, cost, state?.energy_remaining);
   }
 
-  return { state: rows[0], spent: cost, action };
+  const result = { state: rows[0], spent: cost, action };
+  await publishEnergySpentEvent(userId, result);
+  return result;
+}
+
+export async function publishEnergySpentEvent(userId, result) {
+  try {
+    const { publishEnergyEvent } = await import('./eventStreamService.js');
+    await publishEnergyEvent({
+      userId,
+      action: result.action,
+      spent: result.spent,
+      remaining: result.state.energy_remaining,
+      max: result.state.energy_max,
+    });
+  } catch {
+    // non-fatal
+  }
 }
 
 export async function ensureEnergyState(userId, client = null) {

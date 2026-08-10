@@ -5,6 +5,7 @@ import '../../services/analytics_service.dart';
 import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/realtime_service.dart';
+import '../../services/telemetry_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/main_shell.dart';
 import 'login_screen.dart';
@@ -42,6 +43,10 @@ class _AuthGateState extends State<AuthGate> {
     try {
       final session = await widget.api.fetchSession();
       await widget.api.connectRealtime(widget.realtime);
+      await TelemetryService.setUser(
+        id: session.user.id,
+        username: session.user.username,
+      );
       if (!mounted) return;
       setState(() {
         _session = session;
@@ -55,6 +60,7 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _logout() async {
     widget.realtime.disconnect();
+    await TelemetryService.clearUser();
     await widget.api.logout();
     if (!mounted) return;
     setState(() => _session = null);

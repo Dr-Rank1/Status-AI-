@@ -8,6 +8,7 @@ import {
   regenerateStaleEnergy,
   applyCooldownRegen,
 } from '../services/energyRegenService.js';
+import { runFineTuningExportWorker } from '../workers/fineTuningExportWorker.js';
 import { logger } from '../utils/logger.js';
 
 const CRON_ENABLED = process.env.CRON_ENABLED !== 'false';
@@ -17,6 +18,7 @@ const ENERGY_DAILY_CRON = process.env.ENERGY_DAILY_CRON ?? '0 0 * * *';
 const ENERGY_COOLDOWN_CRON = process.env.ENERGY_COOLDOWN_CRON ?? '0 * * * *';
 
 const NARRATIVE_EVENT_CRON = process.env.NARRATIVE_EVENT_CRON ?? '0 12 * * *';
+const FINE_TUNING_EXPORT_CRON = process.env.FINE_TUNING_EXPORT_CRON ?? '0 3 * * 0';
 
 let jobs = [];
 
@@ -63,6 +65,13 @@ export function startScheduledJobs() {
 
     schedule('energy-cooldown-tick', ENERGY_COOLDOWN_CRON, async () => {
       await applyCooldownRegen();
+    }),
+
+    schedule('fine-tuning-export', FINE_TUNING_EXPORT_CRON, async () => {
+      const result = await runFineTuningExportWorker();
+      if (result) {
+        logger.info(`[Cron] Fine-tuning export: ${result.count} records → ${result.filePath}`);
+      }
     }),
   ].filter(Boolean);
 

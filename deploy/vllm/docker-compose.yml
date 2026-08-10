@@ -1,0 +1,48 @@
+# Self-hosted vLLM inference (OpenAI-compatible API, port 8000)
+#
+# Start:
+#   ./deploy/vllm/setup-vllm.sh
+#   # or: docker compose -f deploy/vllm/docker-compose.yml up -d
+#
+# Hugging Face gated models (Llama 3):
+#   export HF_TOKEN=hf_...
+#   ./deploy/vllm/setup-vllm.sh
+
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: status-vllm
+    restart: unless-stopped
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - ../../data/vllm/huggingface:/root/.cache/huggingface
+    command:
+      - --model
+      - ${VLLM_MODEL:-meta-llama/Meta-Llama-3-8B-Instruct}
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --dtype
+      - auto
+      - --max-model-len
+      - "8192"
+      - --gpu-memory-utilization
+      - "0.90"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s

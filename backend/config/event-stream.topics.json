@@ -1,0 +1,29 @@
+# Event streaming topics (Kafka / Redpanda)
+#
+# Create topics (Redpanda CLI inside container):
+#   docker exec status-redpanda rpk topic create status.energy.events status.reputation.events
+#
+# Environment (backend/.env):
+#   KAFKA_BROKERS=localhost:9092
+#   # or REDPANDA_BROKERS=redpanda:9092
+#   KAFKA_TOPIC_ENERGY=status.energy.events
+#   KAFKA_TOPIC_REPUTATION=status.reputation.events
+#
+# Event schema (JSON value):
+#   { eventType, region, timestamp, userId, ...payload }
+#
+# Consumer example (separate service):
+#   kafkajs consumer on status.energy.events → analytics warehouse
+#   kafkajs consumer on status.reputation.events → notification fan-out
+
+topics:
+  - name: status.energy.events
+    partitions: 3
+    description: Energy spent, refill, daily reset events
+    producers:
+      - status-api (energyService.spendEnergy)
+  - name: status.reputation.events
+    partitions: 3
+    description: Reputation and affinity changes from interactions
+    producers:
+      - status-api (relationshipService.applyInteraction)

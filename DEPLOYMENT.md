@@ -108,6 +108,25 @@ cd mobile && flutter test integration_test/app_test.dart \
 
 Production CORS: set `CORS_ORIGINS=https://your-app.example` in backend `.env`.
 
+## PostHog & Sentry (Phase 17)
+
+| Secret | Where |
+|--------|-------|
+| `POSTHOG_API_KEY` | `backend/.env` + `mobile/.env` |
+| `POSTHOG_HOST` | Optional — defaults to `https://us.i.posthog.com` |
+| `SENTRY_DSN` | `backend/.env` + `mobile/.env` |
+
+Create feature flags in PostHog using `backend/config/posthog-flags.example.json` as a template. Toggle `enable-3d-avatars` or `force-gemini-dm` live without redeploying.
+
+## Multi-region & resilience (Phase 18)
+
+```bash
+REGION_ID=us-east-1 npm start
+curl http://localhost:3000/api/v1/health/region
+docker compose -f docker-compose.yml -f deploy/redpanda-compose.yml up -d
+kubectl apply -f deploy/chaos-mesh/staging/ -n status-staging
+```
+
 ## Post-merge verification
 
 1. Confirm GitHub Actions workflow passes on `main`
