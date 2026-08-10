@@ -84,6 +84,21 @@ export const e2eeRegisterKeySchema = z.object({
   signedPrekeyPublic: z.string().trim().max(4096).optional(),
 });
 
+export const zkpVerifySchema = z.object({
+  proof: z.string().trim().min(16).max(8192),
+  claimType: z.enum(['reputation_min', 'account_age_days', 'vip']),
+  threshold: z.number().int().min(0).max(100000).optional(),
+});
+
+export const storagePinUrlSchema = z.object({
+  url: z.string().trim().url().max(2048),
+});
+
+export const storagePinCharacterSchema = z.object({
+  assetType: z.enum(['avatar', 'model']).optional().default('avatar'),
+  url: z.string().trim().url().max(2048).optional(),
+});
+
 export const createPostSchema = z.object({
   content: z.string().trim().min(1, 'content is required').max(5000, 'content too long'),
   imageUrl: z.string().trim().max(2048).optional().nullable(),
@@ -103,4 +118,85 @@ export const feedbackSchema = z.object({
 
 export const replyToPostSchema = z.object({
   content: z.string().trim().min(1, 'content is required').max(4000, 'content too long'),
+});
+
+export const oauthTokenSchema = z.object({
+  grant_type: z.literal('client_credentials'),
+  client_id: z.string().trim().min(8).max(64),
+  client_secret: z.string().trim().min(16).max(256),
+});
+
+export const publicChatSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+});
+
+export const webhookRegisterSchema = z.object({
+  url: z.string().trim().url().max(2048),
+  events: z.array(z.enum(['narrative.event', 'character.status', 'feed.post', 'character.message'])).optional(),
+  secret: z.string().trim().min(16).max(128).optional(),
+});
+
+export const federatedSubmitSchema = z.object({
+  userCommitment: z.string().trim().min(16).max(128),
+  encryptedPayload: z.string().trim().min(32).max(65536),
+  sampleCount: z.number().int().min(1).max(100000).optional(),
+});
+
+export const devClientRegisterSchema = z.object({
+  name: z.string().trim().min(2).max(128),
+  scopes: z.array(z.string()).optional(),
+});
+
+export const pqRegisterKeySchema = z.object({
+  deviceId: z.string().trim().min(1).max(128),
+  kyberPublicKey: z.string().trim().min(32).max(4096),
+  algorithm: z.enum(['kyber768', 'kyber1024']).optional().default('kyber768'),
+});
+
+export const bciIntentSchema = z.object({
+  valence: z.number().min(-1).max(1),
+  arousal: z.number().min(0).max(1),
+  focusLevel: z.number().min(0).max(1).optional(),
+  intentType: z.enum(['ambient', 'focus_character', 'navigate', 'disengage', 'engage']).optional().default('ambient'),
+  characterId: z.string().uuid().optional(),
+});
+
+export const syntheticBatchSchema = z.object({
+  personaCount: z.number().int().min(1).max(5000).optional(),
+  characterIds: z.array(z.string().uuid()).optional(),
+});
+
+export const affectiveMetricsSchema = z.object({
+  hrvScore: z.number().min(0).max(1).optional(),
+  facialValence: z.number().min(-1).max(1).optional(),
+  voiceStress: z.number().min(0).max(1).optional(),
+  characterId: z.string().uuid().optional(),
+});
+
+export const meshRegisterSchema = z.object({
+  peerId: z.string().trim().min(8).max(128),
+  clusterId: z.string().trim().min(1).max(64),
+  capabilities: z.array(z.string()).optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export const meshSignalSchema = z.object({
+  fromPeerId: z.string().trim().min(8).max(128),
+  toPeerId: z.string().trim().min(8).max(128).optional(),
+  signalType: z.enum(['offer', 'answer', 'ice', 'gossip', 'embedding_sync']),
+  payload: z.record(z.unknown()),
+});
+
+export const meshGossipSchema = z.object({
+  clusterId: z.string().trim().min(1).max(64),
+  recordType: z.enum(['thread', 'embedding', 'memory', 'character_state']),
+  recordKey: z.string().trim().min(1).max(256),
+  payload: z.record(z.unknown()),
+  originPeerId: z.string().trim().min(8).max(128).optional(),
+});
+
+export const metaverseSyncSchema = z.object({
+  characterId: z.string().uuid(),
+  engineType: z.enum(['generic', 'unreal', 'unity', 'openxr']).optional().default('generic'),
+  exportFormat: z.enum(['vrm', 'openxr']).optional().default('vrm'),
 });

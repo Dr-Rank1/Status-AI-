@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hashPassword,
@@ -8,6 +8,10 @@ import {
 } from '../src/services/authService.js';
 
 describe('authService', () => {
+  beforeEach(() => {
+    process.env.PQ_AUTH_ENABLED = 'false';
+  });
+
   it('hashes and verifies passwords', async () => {
     const hash = await hashPassword('test-password-123');
     assert.ok(hash.startsWith('$2'));

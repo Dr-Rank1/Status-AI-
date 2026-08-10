@@ -6,6 +6,7 @@ import { generateGeminiReply } from './geminiProvider.js';
 import { generateVllmReply } from './vllmProvider.js';
 import { enrichArgsWithRouting, selectProvider } from './router.js';
 import { shouldUseAgentWorkflow, runAgentWorkflow } from './agentWorkflowService.js';
+import { shouldUseMultiAgent, runMultiAgentCoordinator } from './multiAgentCoordinator.js';
 import { resolveRoutingWithFlags } from './flagRouting.js';
 import { recordAiTelemetry } from '../aiTelemetryService.js';
 import { withCircuitBreaker } from '../circuitBreaker.js';
@@ -136,6 +137,38 @@ async function callRoutedProvider(args) {
     routeReason: reason,
   });
 
+  try {
+    const { logModelDecision } = await import('../aiGovernanceService.js');
+    const { analyzeAiOutput } = await import('../aiAnomalyDetectionService.js');
+
+    await logModelDecision({
+      userId,
+      characterId: args.character?.id,
+      provider: result.provider ?? provider,
+      model: result.model,
+      mode: args.mode,
+      routeReason: reason,
+      inputSummary: args.incomingMessage,
+      outputSummary: result.content,
+      toolResults: result.toolResults,
+      multiAgent: result.multiAgent,
+      latencyMs: Date.now() - started,
+      humanOversight: Boolean(result.degraded),
+    });
+
+    await analyzeAiOutput({
+      mode: args.mode,
+      provider: result.provider ?? provider,
+      model: result.model,
+      latencyMs: Date.now() - started,
+      inputText: args.incomingMessage ?? '',
+      outputText: result.content ?? '',
+      userId,
+    });
+  } catch {
+    // non-fatal compliance telemetry
+  }
+
   return result;
 }
 
@@ -158,6 +191,9 @@ async function callLegacyProvider(args) {
 export async function generateCharacterReply(args) {
   try {
     if (shouldUseAgentWorkflow(args.mode)) {
+      if (shouldUseMultiAgent(args.mode)) {
+        return await runMultiAgentCoordinator(args);
+      }
       return await runAgentWorkflow(args);
     }
 

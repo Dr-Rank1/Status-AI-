@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_ai/flutter_local_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -16,9 +19,13 @@ import '../models/profile.dart';
 import '../models/session.dart';
 import '../models/live_stream.dart';
 import '../models/spatial.dart';
+import '../models/bci.dart';
+import '../models/affective.dart';
+import 'mesh_gossip_protocol.dart';
 import 'auth_storage.dart';
 import 'local_ai_service.dart';
 import 'offline_action_queue_service.dart';
+import 'federated_learning_service.dart';
 import 'offline_cache_service.dart';
 import 'realtime_service.dart';
 import 'e2ee_service.dart';
@@ -31,12 +38,14 @@ class ApiService {
     Connectivity? connectivity,
     OfflineActionQueueService? queue,
     E2eeService? e2ee,
+    FederatedLearningService? federated,
   })  : _client = client ?? http.Client(),
         _authStorage = authStorage ?? AuthStorage(),
         _localAi = localAi ?? LocalAiService(),
         _connectivity = connectivity ?? Connectivity(),
         _queue = queue ?? OfflineActionQueueService.instance,
-        _e2ee = e2ee ?? E2eeService();
+        _e2ee = e2ee ?? E2eeService(),
+        _federated = federated ?? FederatedLearningService();
 
   final http.Client _client;
   final AuthStorage _authStorage;
@@ -44,6 +53,7 @@ class ApiService {
   final Connectivity _connectivity;
   final OfflineActionQueueService _queue;
   final E2eeService _e2ee;
+  final FederatedLearningService _federated;
   String? _token;
   EnergyState? _lastEnergy;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -56,6 +66,7 @@ class ApiService {
     _token = await _authStorage.getToken();
     await _localAi.init();
     await _e2ee.init();
+    await _federated.init();
     await OfflineActionQueueService.init();
 
     _connectivitySub ??= _connectivity.onConnectivityChanged.listen((_) {
@@ -1197,6 +1208,214 @@ class ApiService {
     _throwIfError(response, 'Spatial react failed');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return SpatialReactResult.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> fetchWearableSync() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/wearable/sync');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to fetch wearable sync');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> generateZkpProof() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/zkp/proof');
+    final response = await _client.post(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to generate ZKP');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  FederatedLearningService get federated => _federated;
+
+  Future<void> syncFederatedLearning({int sampleCount = 1}) async {
+    if (!await isOnline()) return;
+
+    final commitment = await _federated.userCommitment();
+    final payload = await _federated.buildContributionPayload(sampleCount: sampleCount);
+    final encrypted = await _encryptFederatedPayload(payload);
+
+    final submitUri = Uri.parse('${ApiConfig.baseUrl.replaceFirst('/api/v1', '')}/api/v1/public/federated/submit');
+    await _client.post(
+      submitUri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'userCommitment': commitment,
+        'encryptedPayload': encrypted,
+        'sampleCount': sampleCount,
+      }),
+    );
+
+    final weightsUri = Uri.parse('${ApiConfig.baseUrl.replaceFirst('/api/v1', '')}/api/v1/public/federated/weights');
+    final weightsResp = await _client.get(weightsUri);
+    if (weightsResp.statusCode == 200) {
+      final body = jsonDecode(weightsResp.body) as Map<String, dynamic>;
+      final weights = (body['data']['weights'] as List<dynamic>).map((e) => (e as num).toDouble()).toList();
+      await _federated.applyGlobalWeights(weights);
+    }
+  }
+
+  Future<Map<String, dynamic>> submitBciIntent({
+    required BciSignalSnapshot snapshot,
+    String? characterId,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/bci/intent');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(snapshot.toApiJson(characterId: characterId)),
+    );
+    _throwIfError(response, 'Failed to submit BCI intent');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> submitAffectiveMetrics({
+    required AffectiveSnapshot snapshot,
+    String? characterId,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/affective/metrics');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(snapshot.toApiJson(characterId: characterId)),
+    );
+    _throwIfError(response, 'Failed to submit affective metrics');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<void> registerMeshPeer({
+    required String peerId,
+    required String clusterId,
+    List<String> capabilities = const [],
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/mesh/register');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'peerId': peerId,
+        'clusterId': clusterId,
+        'capabilities': capabilities,
+      }),
+    );
+    _throwIfError(response, 'Failed to register mesh peer');
+  }
+
+  Future<List<Map<String, dynamic>>> listMeshPeers(String clusterId) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/mesh/peers/$clusterId');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to list mesh peers');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as List<dynamic>).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> submitMeshGossip({
+    required String clusterId,
+    required MeshGossipRecord record,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/mesh/gossip');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'clusterId': clusterId,
+        'recordType': record.type.apiValue,
+        'recordKey': record.key,
+        'payload': record.payload,
+        'originPeerId': record.originPeerId,
+      }),
+    );
+    _throwIfError(response, 'Failed to submit mesh gossip');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<void> relayMeshSignal({
+    required String fromPeerId,
+    String? toPeerId,
+    required String signalType,
+    required Map<String, dynamic> payload,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/mesh/signal');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'fromPeerId': fromPeerId,
+        if (toPeerId != null) 'toPeerId': toPeerId,
+        'signalType': signalType,
+        'payload': payload,
+      }),
+    );
+    _throwIfError(response, 'Failed to relay mesh signal');
+  }
+
+  Future<Map<String, dynamic>> createMetaverseSync({
+    required String characterId,
+    String engineType = 'generic',
+    String exportFormat = 'vrm',
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/metaverse/sync');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'characterId': characterId,
+        'engineType': engineType,
+        'exportFormat': exportFormat,
+      }),
+    );
+    _throwIfError(response, 'Failed to create metaverse sync');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<Map<String, dynamic>> exportMetaverseCharacter({
+    required String characterId,
+    String format = 'vrm',
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/metaverse/export/$characterId?format=$format');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to export character');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
+  }
+
+  Future<String> _encryptFederatedPayload(Map<String, dynamic> payload) async {
+    // Server-side aggregation uses FEDERATED_AGGREGATION_KEY — dev clients mirror via env.
+    final keyMaterial = dotenv.maybeGet('FEDERATED_SYNC_KEY') ?? 'status-fed-dev-key';
+    final keyHash = await Sha256().hash(utf8.encode(keyMaterial));
+    final aes = AesGcm.with256bits();
+    final nonce = List<int>.generate(12, (_) => Random.secure().nextInt(256));
+    final secretBox = await aes.encrypt(
+      utf8.encode(jsonEncode(payload)),
+      secretKey: SecretKey(keyHash.bytes),
+      nonce: nonce,
+    );
+    final combined = [...nonce, ...secretBox.mac.bytes, ...secretBox.cipherText];
+    return base64.encode(combined);
+  }
+
+  Future<Map<String, dynamic>> verifyZkpProof({
+    required String proof,
+    required String claimType,
+    int? threshold,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/zkp/verify');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'proof': proof,
+        'claimType': claimType,
+        if (threshold != null) 'threshold': threshold,
+      }),
+    );
+    _throwIfError(response, 'Failed to verify ZKP');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return Map<String, dynamic>.from(body['data'] as Map);
   }
 }
 

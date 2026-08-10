@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { query } from '../config/database.js';
 import { ensureEnergyState } from './energyService.js';
 import { AppError } from '../utils/errors.js';
+import { signHybridToken, verifyHybridToken, PQ_ENABLED } from './postQuantumAuthService.js';
+import { recordUserConsent } from './aiGovernanceService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d';
@@ -32,14 +34,32 @@ export async function comparePassword(password, hash) {
 }
 
 export function signToken(user) {
+  if (PQ_ENABLED) {
+    const hybrid = signHybridToken(user);
+    return hybrid.token;
+  }
   return jwt.sign(
     { userId: user.id, username: user.username },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: JWT_EXPIRES_IN },
   );
 }
 
-export function verifyToken(token) {
+export function signTokenWithPQ(user) {
+  if (PQ_ENABLED) {
+    return signHybridToken(user);
+  }
+  return {
+    token: jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN }),
+    pqSignature: null,
+    pqAlgorithm: null,
+  };
+}
+
+export function verifyToken(token, pqSignature = null) {
+  if (PQ_ENABLED && pqSignature) {
+    return verifyHybridToken(token, pqSignature);
+  }
   return jwt.verify(token, JWT_SECRET);
 }
 
@@ -66,9 +86,16 @@ export async function registerUser({ username, email, password, displayName }) {
     await ensureEnergyState(rows[0].id);
 
     const user = sanitizeUser(rows[0]);
-    const token = signToken(user);
+    const auth = signTokenWithPQ(user);
 
-    return { user, token };
+    await recordUserConsent({
+      userId: user.id,
+      consentType: 'ai_processing',
+      granted: true,
+      metadata: { source: 'registration' },
+    });
+
+    return { user, token: auth.token, pqSignature: auth.pqSignature, pqAlgorithm: auth.pqAlgorithm };
   } catch (err) {
     if (err.code === '23505') {
       throw new AppError('Username or email already exists', 409, 'CONFLICT');
@@ -107,9 +134,9 @@ export async function loginUser({ email, password }) {
   await ensureEnergyState(userRow.id);
 
   const user = sanitizeUser(userRow);
-  const token = signToken(user);
+  const auth = signTokenWithPQ(user);
 
-  return { user, token };
+  return { user, token: auth.token, pqSignature: auth.pqSignature, pqAlgorithm: auth.pqAlgorithm };
 }
 
 export async function getUserById(userId) {

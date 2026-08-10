@@ -131,4 +131,23 @@ class OfflineCacheService {
         'is_read': m.isRead,
         'created_at': m.createdAt.toIso8601String(),
       };
+
+  static const _meshBox = 'mesh_gossip_cache';
+
+  static Future<void> cacheMeshRecord(String key, Map<String, dynamic> record) async {
+    final box = await Hive.openBox<String>(_meshBox);
+    await box.put(key, jsonEncode(record));
+    await box.put('mesh_cached_at', DateTime.now().toIso8601String());
+  }
+
+  static Map<String, dynamic>? loadMeshRecord(String key) {
+    if (!Hive.isBoxOpen(_meshBox)) return null;
+    final raw = Hive.box<String>(_meshBox).get(key);
+    if (raw == null) return null;
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
 }

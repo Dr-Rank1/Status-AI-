@@ -11,6 +11,8 @@ export async function register(req, res) {
     data: {
       user: result.user,
       token: result.token,
+      pqSignature: result.pqSignature ?? null,
+      pqAlgorithm: result.pqAlgorithm ?? null,
       energy: session?.energy ?? null,
     },
   });
@@ -26,6 +28,8 @@ export async function login(req, res) {
     data: {
       user: result.user,
       token: result.token,
+      pqSignature: result.pqSignature ?? null,
+      pqAlgorithm: result.pqAlgorithm ?? null,
       energy: session?.energy ?? null,
     },
   });

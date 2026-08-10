@@ -1,5 +1,11 @@
 const AI_PROVIDER = (process.env.AI_PROVIDER ?? 'mock').toLowerCase();
 
+function affectiveBlock(context) {
+  const affective = context.affectiveContext;
+  if (!affective?.promptBlock) return '';
+  return affective.promptBlock;
+}
+
 function vectorMemoryBlock(context) {
   const memories = context.vectorMemories;
   if (!memories?.length) return '';
@@ -60,11 +66,12 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
       return [
         customSystem,
         context.spatialContext ?? '',
+        affectiveBlock(context),
         'You are a persistent spatial companion in mixed reality. React to room context briefly.',
       ].filter(Boolean).join('\n');
     }
 
-    return [customSystem, affinityNote, narrativeBlock(context)].filter(Boolean).join('\n');
+    return [customSystem, affinityNote, narrativeBlock(context), affectiveBlock(context)].filter(Boolean).join('\n');
   }
 
   const traits = Array.isArray(personality.traits) ? personality.traits.join(', ') : '';
@@ -130,6 +137,7 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
       `Personality tone: ${tone}.`,
       traits ? `Traits: ${traits}.` : '',
       context.spatialContext ?? '',
+      affectiveBlock(context),
       'You exist in mixed reality — react to room context, lighting, and proxemic distance.',
       'Speak briefly (1-3 sentences) as if physically co-present. Never mention sensors or AI.',
     ]
@@ -164,6 +172,7 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
     traits ? `Traits: ${traits}.` : '',
     affinityNote,
     narrativeBlock(context),
+    affectiveBlock(context),
     modeGuide,
     'Stay in character. Never mention being an AI. No hashtags unless it fits the character.',
   ]

@@ -13,6 +13,19 @@ import {
   replyToPostSchema,
   feedbackSchema,
   e2eeRegisterKeySchema,
+  storagePinUrlSchema,
+  storagePinCharacterSchema,
+  zkpVerifySchema,
+  federatedSubmitSchema,
+  devClientRegisterSchema,
+  pqRegisterKeySchema,
+  bciIntentSchema,
+  syntheticBatchSchema,
+  affectiveMetricsSchema,
+  meshRegisterSchema,
+  meshSignalSchema,
+  meshGossipSchema,
+  metaverseSyncSchema,
 } from '../validation/schemas.js';
 import { uploadImage as multerUpload, uploadAudio as multerAudio } from '../config/upload.js';
 import * as auth from '../controllers/authController.js';
@@ -31,7 +44,22 @@ import * as voice from '../controllers/voiceController.js';
 import * as spatial from '../controllers/spatialController.js';
 import * as feedback from '../controllers/feedbackController.js';
 import * as e2ee from '../controllers/e2eeController.js';
+import * as agentWallet from '../controllers/agentWalletController.js';
+import * as storage from '../controllers/storageController.js';
+import * as zkp from '../controllers/zkpController.js';
+import * as oauth from '../controllers/oauthController.js';
+import * as compliance from '../controllers/complianceController.js';
+import * as pqCrypto from '../controllers/pqCryptoController.js';
+import * as selfHealing from '../controllers/selfHealingController.js';
+import * as synthetic from '../controllers/syntheticController.js';
+import * as bci from '../controllers/bciController.js';
+import * as affective from '../controllers/affectiveController.js';
+import * as mesh from '../controllers/meshController.js';
+import * as metaverse from '../controllers/metaverseController.js';
+import wearableRouter from './wearable.js';
 import { spatialPrivacyMiddleware } from '../middleware/spatialPrivacy.js';
+import { bciPrivacyMiddleware } from '../middleware/bciPrivacy.js';
+import { affectivePrivacyMiddleware } from '../middleware/affectivePrivacy.js';
 import { live, ready } from '../controllers/healthController.js';
 import { regionStatus } from '../middleware/region.js';
 
@@ -56,6 +84,8 @@ router.get('/posts/:id', asyncHandler(posts.getPost));
 router.get('/posts/:id/replies', asyncHandler(posts.getPostReplies));
 
 router.get('/store/products', asyncHandler(energy.listStoreProducts));
+
+router.post('/zkp/verify', validateBody(zkpVerifySchema), asyncHandler(zkp.verifyProof));
 
 // Protected routes (JWT)
 router.use(authMiddleware);
@@ -101,8 +131,27 @@ router.post('/analytics/events', asyncHandler(analytics.ingestClientEvents));
 
 router.post('/feedback', validateBody(feedbackSchema), asyncHandler(feedback.submitFeedback));
 
+router.post('/developers/clients', validateBody(devClientRegisterSchema), asyncHandler(oauth.registerDevClient));
+
 router.post('/e2ee/keys', validateBody(e2eeRegisterKeySchema), asyncHandler(e2ee.registerKey));
 router.get('/e2ee/keys', asyncHandler(e2ee.getKeys));
+
+router.get('/characters/:characterId/wallet', asyncHandler(agentWallet.getCharacterWallet));
+router.get('/wallets/agents', asyncHandler(agentWallet.listWallets));
+
+router.post('/storage/pin', multerUpload.single('file'), asyncHandler(storage.pinUpload));
+router.post('/storage/pin-url', validateBody(storagePinUrlSchema), asyncHandler(storage.pinRemoteUrl));
+router.post(
+  '/storage/characters/:characterId/pin',
+  multerUpload.single('file'),
+  asyncHandler(storage.pinCharacter),
+);
+router.post('/storage/posts/:postId/pin', multerUpload.single('file'), asyncHandler(storage.pinPost));
+router.get('/storage/resolve', asyncHandler(storage.resolveMedia));
+
+router.post('/zkp/proof', asyncHandler(zkp.generateProof));
+
+router.use('/wearable', wearableRouter);
 
 router.get('/live/sessions', asyncHandler(live.listSessions));
 router.post('/live/sessions', asyncHandler(live.createSession));
@@ -119,6 +168,38 @@ router.post('/spatial/scenes', asyncHandler(spatial.saveScene));
 router.delete('/spatial/scenes/:sceneKey', asyncHandler(spatial.deleteScene));
 router.post('/spatial/context', asyncHandler(spatial.submitContext));
 router.post('/spatial/react', aiRateLimiter, asyncHandler(spatial.spatialCharacterReact));
+
+router.get('/compliance/audit', adminMiddleware, asyncHandler(compliance.exportComplianceAudit));
+router.get('/compliance/status', adminMiddleware, asyncHandler(compliance.complianceStatus));
+
+router.post('/pq/keys', validateBody(pqRegisterKeySchema), asyncHandler(pqCrypto.registerPQKey));
+
+router.post('/bci/intent', bciPrivacyMiddleware, validateBody(bciIntentSchema), asyncHandler(bci.submitIntent));
+router.get('/bci/events', asyncHandler(bci.recentEvents));
+
+router.post('/affective/metrics', affectivePrivacyMiddleware, validateBody(affectiveMetricsSchema), asyncHandler(affective.submitAffectiveMetrics));
+router.get('/affective/context', asyncHandler(affective.getAffectiveContext));
+
+router.post('/mesh/register', validateBody(meshRegisterSchema), asyncHandler(mesh.registerPeer));
+router.get('/mesh/peers/:clusterId', asyncHandler(mesh.listPeers));
+router.post('/mesh/signal', validateBody(meshSignalSchema), asyncHandler(mesh.signal));
+router.post('/mesh/gossip', validateBody(meshGossipSchema), asyncHandler(mesh.gossip));
+router.get('/mesh/status', asyncHandler(mesh.status));
+
+router.post('/metaverse/sync', validateBody(metaverseSyncSchema), asyncHandler(metaverse.createSync));
+router.get('/metaverse/sync/:token', asyncHandler(metaverse.getSync));
+router.get('/metaverse/export/:characterId', asyncHandler(metaverse.exportCharacter));
+
+router.get('/admin/self-healing/status', adminMiddleware, asyncHandler(selfHealing.status));
+router.get('/admin/self-healing/errors', adminMiddleware, asyncHandler(selfHealing.recentErrors));
+router.post('/admin/self-healing/inspect', adminMiddleware, asyncHandler(selfHealing.inspect));
+router.post('/admin/self-healing/cycle', adminMiddleware, asyncHandler(selfHealing.runCycle));
+router.post('/admin/self-healing/patches/:patchId/apply', adminMiddleware, asyncHandler(selfHealing.hotApplyPatch));
+
+router.get('/admin/synthetic/status', adminMiddleware, asyncHandler(synthetic.status));
+router.post('/admin/synthetic/run', adminMiddleware, validateBody(syntheticBatchSchema), asyncHandler(synthetic.startBatch));
+router.post('/admin/synthetic/worker', adminMiddleware, asyncHandler(synthetic.runWorker));
+router.get('/admin/synthetic/curated', adminMiddleware, asyncHandler(synthetic.exportCurated));
 
 // Admin routes
 router.get('/admin/characters', adminMiddleware, asyncHandler(admin.listAllCharacters));

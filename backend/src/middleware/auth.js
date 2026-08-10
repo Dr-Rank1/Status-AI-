@@ -1,16 +1,27 @@
 import { verifyToken, getUserById } from '../services/authService.js';
+import { extractPQCredentials, logPQHandshakeFailure } from '../services/postQuantumAuthService.js';
+import { recordPQHandshakeFailure } from '../services/aiAnomalyDetectionService.js';
 import { AppError } from '../utils/errors.js';
 
 export async function authMiddleware(req, res, next) {
   try {
-    const header = req.headers.authorization;
+    const { token, pqSignature } = extractPQCredentials(req);
 
-    if (!header?.startsWith('Bearer ')) {
+    if (!token) {
       throw new AppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const token = header.slice(7);
-    const payload = verifyToken(token);
+    let payload;
+    try {
+      payload = verifyToken(token, pqSignature);
+    } catch (err) {
+      if (err.code === 'PQ_AUTH_FAILED') {
+        logPQHandshakeFailure(err.message);
+        await recordPQHandshakeFailure({ path: req.path, ip: req.ip });
+        return next(new AppError('Post-quantum authentication failed', 401, 'PQ_AUTH_FAILED'));
+      }
+      throw err;
+    }
 
     const user = await getUserById(payload.userId);
     if (!user) {
@@ -19,6 +30,7 @@ export async function authMiddleware(req, res, next) {
 
     req.user = user;
     req.token = token;
+    req.pqSignature = pqSignature;
     next();
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {

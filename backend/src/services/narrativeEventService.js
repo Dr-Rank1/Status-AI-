@@ -73,6 +73,17 @@ export async function triggerRandomNarrativeEvent() {
     fandom: event.fandom,
   });
 
+  try {
+    const { dispatchWebhookEvent } = await import('./webhookService.js');
+    await dispatchWebhookEvent('narrative.event', {
+      id: event.id,
+      title: event.title,
+      fandom: event.fandom,
+    });
+  } catch {
+    // non-fatal
+  }
+
   const reactions = await publishCharacterReactions(event);
   return { event, reactions };
 }

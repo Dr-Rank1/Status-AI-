@@ -197,14 +197,26 @@ export async function queuePostAiReply({
         sentiment: interaction.sentiment,
       });
 
-      emitReputationChange(user.id, {
-        reputation: interaction.reputation,
-        followerCount: interaction.followerCount,
-        affinity: interaction.affinity,
-        affinityDelta: interaction.affinityDelta,
-        reputationDelta: interaction.reputationDelta,
-        characterId,
-      });
+        emitReputationChange(user.id, {
+          reputation: interaction.reputation,
+          followerCount: interaction.followerCount,
+          affinity: interaction.affinity,
+          affinityDelta: interaction.affinityDelta,
+          reputationDelta: interaction.reputationDelta,
+          characterId,
+        });
+
+        try {
+          const { evaluateReplyForCommunityObjective } = await import('./agentTipService.js');
+          await evaluateReplyForCommunityObjective({
+            userId: user.id,
+            characterId,
+            parentPostId,
+            sentimentLabel: interaction.sentiment ?? 'neutral',
+          });
+        } catch {
+          // non-fatal
+        }
     } catch (err) {
       console.error('[AI] Async post reply failed:', err.message);
     }
