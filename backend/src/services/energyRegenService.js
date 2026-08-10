@@ -1,4 +1,6 @@
 import { query } from '../config/database.js';
+import { emitEnergyRecharged } from './socketService.js';
+import { logger } from '../utils/logger.js';
 
 export async function regenerateAllUserEnergy() {
   const { rows } = await query(
@@ -11,7 +13,7 @@ export async function regenerateAllUserEnergy() {
      RETURNING user_id, energy_remaining, energy_max, reset_at`
   );
 
-  console.log(`[EnergyRegen] Replenished energy for ${rows.length} user(s)`);
+  logger.info(`[EnergyRegen] Replenished energy for ${rows.length} user(s)`);
   return rows;
 }
 
@@ -26,7 +28,10 @@ export async function regenerateStaleEnergy() {
   );
 
   if (rows.length > 0) {
-    console.log(`[EnergyRegen] Daily reset for ${rows.length} user(s)`);
+    logger.info(`[EnergyRegen] Daily reset for ${rows.length} user(s)`);
+    for (const row of rows) {
+      emitEnergyRecharged(row.user_id, row);
+    }
   }
 
   return rows;
@@ -46,7 +51,12 @@ export async function applyCooldownRegen(tickAmount = 5) {
   );
 
   if (rows.length > 0) {
-    console.log(`[EnergyRegen] Cooldown tick +${maxPerTick} for ${rows.length} user(s)`);
+    logger.info(`[EnergyRegen] Cooldown tick +${maxPerTick} for ${rows.length} user(s)`);
+    for (const row of rows) {
+      if (row.energy_remaining >= row.energy_max) {
+        emitEnergyRecharged(row.user_id, row);
+      }
+    }
   }
 
   return rows;

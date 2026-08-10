@@ -18,6 +18,7 @@ function sanitizeUser(row) {
     reputation: row.reputation,
     follower_count: row.follower_count,
     following_count: row.following_count,
+    is_admin: row.is_admin ?? false,
     created_at: row.created_at,
   };
 }
@@ -58,7 +59,7 @@ export async function registerUser({ username, email, password, displayName }) {
       `INSERT INTO users (username, email, password_hash, display_name)
        VALUES ($1, $2, $3, $4)
        RETURNING id, username, email, display_name, avatar_url, bio, reputation,
-                 follower_count, following_count, created_at`,
+                 follower_count, following_count, is_admin, created_at`,
       [username.toLowerCase(), email.toLowerCase(), passwordHash, displayName]
     );
 
@@ -83,7 +84,7 @@ export async function loginUser({ email, password }) {
 
   const { rows } = await query(
     `SELECT id, username, email, password_hash, display_name, avatar_url, bio,
-            reputation, follower_count, following_count, created_at
+            reputation, follower_count, following_count, is_admin, created_at
      FROM users WHERE email = $1 OR username = $1`,
     [email.toLowerCase()]
   );
@@ -114,7 +115,7 @@ export async function loginUser({ email, password }) {
 export async function getUserById(userId) {
   const { rows } = await query(
     `SELECT id, username, email, display_name, avatar_url, bio, reputation,
-            follower_count, following_count, created_at
+            follower_count, following_count, is_admin, created_at
      FROM users WHERE id = $1`,
     [userId]
   );

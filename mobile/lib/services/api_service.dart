@@ -6,11 +6,13 @@ import 'package:http_parser/http_parser.dart';
 
 import '../config/api_config.dart';
 import '../models/auth.dart';
+import '../models/admin_character.dart';
 import '../models/messaging.dart';
 import '../models/post.dart';
 import '../models/profile.dart';
 import '../models/session.dart';
 import 'auth_storage.dart';
+import 'realtime_service.dart';
 
 class ApiService {
   ApiService({http.Client? client, AuthStorage? authStorage})
@@ -84,6 +86,17 @@ class ApiService {
 
   Future<void> logout() async {
     await setToken(null);
+  }
+
+  Future<String?> getToken() async {
+    return _token ?? await _authStorage.getToken();
+  }
+
+  Future<void> connectRealtime(RealtimeService realtime) async {
+    final token = await getToken();
+    if (token != null) {
+      realtime.connect(token);
+    }
   }
 
   Future<AppSession> fetchSession() async {
@@ -328,17 +341,182 @@ class ApiService {
     return data.map((e) => ActivityItem.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  Future<List<AdminCharacter>> fetchAdminCharacters() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/admin/characters');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load characters');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as List<dynamic>;
+    return data.map((e) => AdminCharacter.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<AdminCharacter> upsertAdminCharacter(AdminCharacter character) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/admin/characters');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(character.toPayload()),
+    );
+    _throwIfError(response, 'Failed to save character');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return AdminCharacter.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<void> logClientEvents(List<Map<String, dynamic>> events) async {
+    if (events.isEmpty) return;
+    final uri = Uri.parse('${ApiConfig.baseUrl}/analytics/events');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'events': events}),
+    );
+    _throwIfError(response, 'Failed to log analytics');
+  }
+
+  Future<String> transcribeVoice(File audioFile) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/voice/transcribe');
+    final request = http.MultipartRequest('POST', uri);
+    final headers = await _headers(json: false);
+    request.headers.addAll(headers);
+    request.files.add(await http.MultipartFile.fromPath('audio', audioFile.path));
+
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+    _throwIfError(response, 'Voice transcription failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return (body['data'] as Map<String, dynamic>)['text'] as String;
+  }
+
+  Future<List<int>?> trySynthesizeVoice(String text) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/voice/synthesize');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'text': text}),
+    );
+    if (response.statusCode == 503) return null;
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    return null;
+  }
+
   void _throwIfError(http.Response response, String message) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
     if (response.statusCode == 401) {
       throw AuthException('Session expired — please log in again');
     }
+    if (response.statusCode == 422) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw ContentModerationException(
+          body['message'] as String? ?? 'Content blocked by safety filter',
+        );
+      } catch (e) {
+        if (e is ContentModerationException) rethrow;
+      }
+    }
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       throw ApiException(body['message'] as String? ?? message, response.statusCode);
-    } catch (_) {
+    } catch (e) {
+      if (e is ApiException || e is ContentModerationException) rethrow;
       throw ApiException(message, response.statusCode);
     }
+  }
+
+  Future<UserCreatedCharacter> createCharacter({
+    required AdminCharacter character,
+    String? avatarUrl,
+    bool publish = true,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/characters');
+    final payload = character.toPayload();
+    if (avatarUrl != null) payload['avatarUrl'] = avatarUrl;
+    payload['publish'] = publish;
+
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode(payload),
+    );
+    _throwIfError(response, 'Failed to create character');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return UserCreatedCharacter.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<List<GroupThread>> fetchGroups() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/messages/groups');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load groups');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as List<dynamic>;
+    return data.map((e) => GroupThread.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<GroupThread> createGroup({
+    required String name,
+    required List<String> characterIds,
+    List<String> userIds = const [],
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/messages/groups');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'name': name,
+        'characterIds': characterIds,
+        'userIds': userIds,
+      }),
+    );
+    _throwIfError(response, 'Failed to create group');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return GroupThread.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<GroupMessagesResult> fetchGroupMessages(String groupId) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/messages/groups/$groupId');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load group messages');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as List<dynamic>;
+    final meta = body['meta'] as Map<String, dynamic>;
+    return GroupMessagesResult(
+      messages: data.map((e) => GroupMessage.fromJson(e as Map<String, dynamic>)).toList(),
+      group: GroupThread.fromJson(meta['group'] as Map<String, dynamic>),
+      aiPending: meta['aiPending'] as bool? ?? false,
+    );
+  }
+
+  Future<GroupSendResult> sendGroupMessage({
+    required String groupId,
+    required String content,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/messages/groups/send');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'groupId': groupId, 'content': content}),
+    );
+
+    if (response.statusCode == 409) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw InsufficientEnergyException(body['message'] as String? ?? 'Insufficient energy');
+    }
+
+    _throwIfError(response, 'Failed to send group message');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final mentioned = (body['mentioned'] as List<dynamic>?)
+            ?.map((e) => Map<String, String>.from(e as Map))
+            .toList() ??
+        [];
+
+    return GroupSendResult(
+      message: GroupMessage.fromJson(body['data'] as Map<String, dynamic>),
+      energy: EnergyState.fromJson(body['energy'] as Map<String, dynamic>),
+      aiPending: body['aiPending'] as bool? ?? false,
+      mentioned: mentioned,
+    );
   }
 }
 
@@ -359,6 +537,13 @@ class AuthException implements Exception {
 
 class InsufficientEnergyException implements Exception {
   InsufficientEnergyException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class ContentModerationException implements Exception {
+  ContentModerationException(this.message);
   final String message;
   @override
   String toString() => message;

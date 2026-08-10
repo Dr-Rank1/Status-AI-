@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -7,10 +8,14 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { AI_PROVIDER } from './services/ai/index.js';
 import { startScheduledJobs } from './jobs/scheduler.js';
 import { UPLOAD_DIR } from './config/upload.js';
+import { initSocket } from './services/socketService.js';
+import { connectRedis } from './config/redis.js';
+import { logger } from './utils/logger.js';
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT ?? 3000;
 
 app.use(cors());
@@ -20,8 +25,9 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 app.get('/', (_req, res) => {
   res.json({
     name: 'Status API',
-    version: '0.2.0',
+    version: '0.3.0',
     docs: '/api/v1/health',
+    websocket: '/socket.io',
   });
 });
 
@@ -30,19 +36,28 @@ app.use('/api/v1', apiRouter);
 app.use(notFound);
 app.use(errorHandler);
 
+initSocket(server);
+
 async function start() {
   try {
-    const db = await checkConnection();
-    console.log(`PostgreSQL connected at ${db.now}`);
-    console.log(`AI provider: ${AI_PROVIDER}`);
-    startScheduledJobs();
+    await connectRedis();
   } catch (err) {
-    console.warn('Database not reachable — API will start but DB routes will fail.');
-    console.warn(err.message);
+    logger.warn('[Redis] Not connected — continuing without cache:', err.message);
   }
 
-  app.listen(PORT, () => {
-    console.log(`Status API listening on http://localhost:${PORT}`);
+  try {
+    const db = await checkConnection();
+    logger.info(`PostgreSQL connected at ${db.now}`);
+    logger.info(`AI provider: ${AI_PROVIDER}`);
+    startScheduledJobs();
+  } catch (err) {
+    logger.warn('Database not reachable — API will start but DB routes will fail.');
+    logger.warn(err.message);
+  }
+
+  server.listen(PORT, () => {
+    logger.info(`Status API listening on http://localhost:${PORT}`);
+    logger.info(`WebSocket ready on ws://localhost:${PORT}/socket.io`);
   });
 }
 

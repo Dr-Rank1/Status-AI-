@@ -18,5 +18,46 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: status-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - status_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: status-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/status
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CRON_ENABLED: ${CRON_ENABLED:-true}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3000}
+    volumes:
+      - status_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   status_pgdata:
+  status_redis:
+  status_uploads:

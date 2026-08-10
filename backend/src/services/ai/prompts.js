@@ -1,26 +1,44 @@
 const AI_PROVIDER = (process.env.AI_PROVIDER ?? 'mock').toLowerCase();
 
-function buildSystemPrompt({ character, relationship, mode }) {
-  const personality = character.personality ?? {};
-  const traits = Array.isArray(personality.traits) ? personality.traits.join(', ') : '';
-  const tone = personality.tone ?? 'neutral';
+function narrativeBlock(context) {
+  const event = context.globalNarrative;
+  if (!event?.global_prompt) return '';
+  return [
+    `GLOBAL EVENT — ${event.title}:`,
+    event.global_prompt,
+    'Reference this event naturally if relevant to your response.',
+  ].join('\n');
+}
 
-  if (mode === 'autonomous_post') {
-    return [
-      `You are ${character.name} (@${character.handle}) from the "${character.fandom}" fandom.`,
-      character.bio ? `Bio: ${character.bio}` : '',
-      `Personality tone: ${tone}.`,
-      traits ? `Traits: ${traits}.` : '',
-      'Write a single original social media post in your voice.',
-      '1-2 sentences. In-world, atmospheric, no hashtags unless natural.',
-      'Never mention being an AI.',
-    ]
-      .filter(Boolean)
-      .join('\n');
+function buildSystemPrompt({ character, relationship, mode, context = {} }) {
+  const personality = character.personality ?? {};
+  const customSystem = personality.system_prompt ?? personality.systemPrompt;
+
+  if (customSystem) {
+    const affinity = relationship?.affinity ?? 0;
+    const affinityNote =
+      affinity >= 50
+        ? 'You genuinely like this person.'
+        : affinity >= 20
+          ? 'You are warming up to this person.'
+          : affinity <= -20
+            ? 'You are skeptical or annoyed by this person.'
+            : 'You are still figuring this person out.';
+
+    if (mode === 'autonomous_post' || mode === 'narrative_reaction') {
+      return [customSystem, narrativeBlock(context)].filter(Boolean).join('\n\n');
+    }
+
+    if (mode === 'group_dm') {
+      return [customSystem, affinityNote, narrativeBlock(context), 'Reply in a group chat. 1-3 sentences.'].filter(Boolean).join('\n');
+    }
+
+    return [customSystem, affinityNote, narrativeBlock(context)].filter(Boolean).join('\n');
   }
 
+  const traits = Array.isArray(personality.traits) ? personality.traits.join(', ') : '';
+  const tone = personality.tone ?? 'neutral';
   const affinity = relationship?.affinity ?? 0;
-
   const affinityNote =
     affinity >= 50
       ? 'You genuinely like this person.'
@@ -29,6 +47,51 @@ function buildSystemPrompt({ character, relationship, mode }) {
         : affinity <= -20
           ? 'You are skeptical or annoyed by this person.'
           : 'You are still figuring this person out.';
+
+  if (mode === 'autonomous_post') {
+    return [
+      `You are ${character.name} (@${character.handle}) from the "${character.fandom}" fandom.`,
+      character.bio ? `Bio: ${character.bio}` : '',
+      `Personality tone: ${tone}.`,
+      traits ? `Traits: ${traits}.` : '',
+      narrativeBlock(context),
+      'Write a single original social media post in your voice.',
+      '1-2 sentences. In-world, atmospheric, no hashtags unless natural.',
+      'Never mention being an AI.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (mode === 'narrative_reaction') {
+    return [
+      `You are ${character.name} (@${character.handle}) from the "${character.fandom}" fandom.`,
+      character.bio ? `Bio: ${character.bio}` : '',
+      `Personality tone: ${tone}.`,
+      traits ? `Traits: ${traits}.` : '',
+      narrativeBlock(context),
+      'Write a reactive social media post about the global event above.',
+      '1-2 sentences, in-character, emotionally authentic.',
+      'Never mention being an AI.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (mode === 'group_dm') {
+    return [
+      `You are ${character.name} (@${character.handle}) in a group chat with multiple humans and AI characters.`,
+      character.bio ? `Bio: ${character.bio}` : '',
+      `Personality tone: ${tone}.`,
+      traits ? `Traits: ${traits}.` : '',
+      affinityNote,
+      narrativeBlock(context),
+      'Reply in a group chat: conversational, aware others may read this. 1-3 sentences.',
+      'Stay in character. Never mention being an AI.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
 
   const modeGuide =
     mode === 'dm'
@@ -41,6 +104,7 @@ function buildSystemPrompt({ character, relationship, mode }) {
     `Personality tone: ${tone}.`,
     traits ? `Traits: ${traits}.` : '',
     affinityNote,
+    narrativeBlock(context),
     modeGuide,
     'Stay in character. Never mention being an AI. No hashtags unless it fits the character.',
   ]
@@ -49,6 +113,35 @@ function buildSystemPrompt({ character, relationship, mode }) {
 }
 
 function buildUserPrompt({ user, context, incomingMessage, mode }) {
+  if (mode === 'narrative_reaction') {
+    const event = context.globalNarrative;
+    return [
+      event ? `React to this event: ${event.title}` : 'React to the current global event.',
+      'Write your in-character social post now.',
+    ].join('\n');
+  }
+
+  if (mode === 'group_dm') {
+    const userLabel = user?.display_name ?? user?.username ?? 'Someone';
+    const history = (context.recentMessages ?? [])
+      .map((m) => {
+        const name =
+          m.sender_type === 'user'
+            ? m.user_name ?? userLabel
+            : m.character_name ?? context.character.name;
+        return `${name}: ${m.content}`;
+      })
+      .join('\n');
+
+    return [
+      history ? `Group chat history:\n${history}` : '',
+      `${userLabel} says: "${incomingMessage}"`,
+      `Respond as ${context.character.name} (@${context.character.handle}).`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
   if (mode === 'autonomous_post') {
     const stats = context.audienceStats ?? {};
     return [
@@ -72,7 +165,12 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
       .map((m) => `${m.sender_type === 'user' ? userLabel : context.character.name}: ${m.content}`)
       .join('\n');
 
+    const memoryBlock = context.memorySummary
+      ? `Long-term memory (summarized earlier conversation):\n${context.memorySummary}`
+      : '';
+
     return [
+      memoryBlock,
       history ? `Recent conversation:\n${history}` : '',
       `${userLabel} says: "${incomingMessage}"`,
       `Respond as ${context.character.name}.`,
@@ -81,11 +179,23 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
       .join('\n\n');
   }
 
+  const interactionHistory = (context.recentInteractions ?? [])
+    .map((r) => `${userLabel} previously replied: "${r.content}"`)
+    .join('\n');
+
+  const memoryBlock = context.memorySummary
+    ? `Long-term memory (past feed interactions with ${context.character.name}):\n${context.memorySummary}`
+    : '';
+
   return [
+    memoryBlock,
+    interactionHistory ? `Recent interactions:\n${interactionHistory}` : '',
     `Original post by ${context.character.name}: "${context.parentPost.content}"`,
     `${userLabel} replied: "${incomingMessage}"`,
     `Write ${context.character.name}'s public reply.`,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function characterFollowerCount(character) {

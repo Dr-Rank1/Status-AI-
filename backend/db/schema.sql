@@ -17,6 +17,7 @@ CREATE TABLE users (
     reputation      INTEGER      NOT NULL DEFAULT 0,
     follower_count  INTEGER      NOT NULL DEFAULT 0,
     following_count INTEGER      NOT NULL DEFAULT 0,
+    is_admin        BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -193,3 +194,103 @@ CREATE TABLE energy_purchases (
 );
 
 CREATE INDEX idx_energy_purchases_user ON energy_purchases (user_id);
+
+CREATE TABLE ai_context_summaries (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    character_id    UUID REFERENCES ai_characters (id) ON DELETE CASCADE,
+    thread_id       UUID REFERENCES dm_threads (id) ON DELETE CASCADE,
+    context_type    VARCHAR(32) NOT NULL,
+    summary         TEXT NOT NULL DEFAULT '',
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, character_id, context_type, thread_id)
+);
+
+CREATE INDEX idx_ai_context_user ON ai_context_summaries (user_id);
+
+CREATE TABLE analytics_events (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID REFERENCES users (id) ON DELETE SET NULL,
+    event_type  VARCHAR(64) NOT NULL,
+    metadata    JSONB NOT NULL DEFAULT '{}',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_analytics_events_type ON analytics_events (event_type);
+CREATE INDEX idx_analytics_events_user ON analytics_events (user_id);
+CREATE INDEX idx_analytics_events_created ON analytics_events (created_at DESC);
+
+UPDATE users SET is_admin = TRUE WHERE username = 'player_one';
+
+-- Phase 10: community platform (see migrations/008_community_platform.sql)
+ALTER TABLE ai_characters
+  ADD COLUMN IF NOT EXISTS creator_user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS is_published BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS creator_energy_earned INTEGER NOT NULL DEFAULT 0;
+
+UPDATE ai_characters SET is_published = TRUE WHERE creator_user_id IS NULL;
+
+CREATE TABLE IF NOT EXISTS creator_rewards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    creator_user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    character_id UUID NOT NULL REFERENCES ai_characters (id) ON DELETE CASCADE,
+    actor_user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+    reward_type VARCHAR(32) NOT NULL,
+    energy_amount INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS group_threads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(128) NOT NULL,
+    created_by UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    last_message_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID NOT NULL REFERENCES group_threads (id) ON DELETE CASCADE,
+    member_type VARCHAR(16) NOT NULL CHECK (member_type IN ('user', 'character')),
+    user_id UUID REFERENCES users (id) ON DELETE CASCADE,
+    character_id UUID REFERENCES ai_characters (id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (
+        (member_type = 'user' AND user_id IS NOT NULL AND character_id IS NULL)
+        OR (member_type = 'character' AND character_id IS NOT NULL AND user_id IS NULL)
+    )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_members_user ON group_members (group_id, user_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_members_character ON group_members (group_id, character_id) WHERE character_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS group_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id UUID NOT NULL REFERENCES group_threads (id) ON DELETE CASCADE,
+    sender_type VARCHAR(16) NOT NULL CHECK (sender_type IN ('user', 'character')),
+    sender_user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+    sender_character_id UUID REFERENCES ai_characters (id) ON DELETE SET NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS narrative_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(256) NOT NULL,
+    global_prompt TEXT NOT NULL,
+    fandom VARCHAR(64),
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS moderation_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users (id) ON DELETE SET NULL,
+    content_type VARCHAR(16) NOT NULL,
+    flagged BOOLEAN NOT NULL DEFAULT FALSE,
+    categories JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

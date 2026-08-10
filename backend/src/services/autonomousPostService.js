@@ -1,5 +1,14 @@
 import { query } from '../config/database.js';
 import { generateCharacterReply } from './ai/index.js';
+import { fetchPostById } from './postFormatter.js';
+import { emitNewPost } from './socketService.js';
+import { invalidateFeedCache } from './feedCacheService.js';
+import { logger } from '../utils/logger.js';
+import {
+  shouldGenerateImageForPost,
+  generateCharacterPostImage,
+  logImageGeneration,
+} from './imageGenerationService.js';
 
 const MIN_HOURS_BETWEEN_POSTS = parseInt(process.env.AI_POST_MIN_HOURS ?? '4', 10);
 
@@ -57,14 +66,15 @@ async function shouldPost(characterId) {
   return hoursSince >= MIN_HOURS_BETWEEN_POSTS;
 }
 
-async function publishCharacterPost(character, content) {
+async function publishCharacterPost(character, content, imageUrl = null) {
   const likeCount = Math.floor(Math.random() * 80) + character.follower_count / 100;
+  const media = imageUrl ? [imageUrl] : [];
 
   const { rows } = await query(
-    `INSERT INTO posts (author_character_id, content, fandom, like_count, reply_count)
-     VALUES ($1, $2, $3, $4, 0)
-     RETURNING id, content, fandom, created_at`,
-    [character.id, content, character.fandom, Math.max(likeCount, 5)]
+    `INSERT INTO posts (author_character_id, content, fandom, like_count, reply_count, image_url, media_urls)
+     VALUES ($1, $2, $3, $4, 0, $5, $6)
+     RETURNING id, content, fandom, created_at, image_url`,
+    [character.id, content, character.fandom, Math.max(likeCount, 5), imageUrl, media]
   );
 
   return rows[0];
@@ -97,17 +107,48 @@ export async function generateAutonomousPostsForAll() {
         continue;
       }
 
-      const post = await publishCharacterPost(character, aiResult.content);
+      let imageUrl = null;
+      let imageMeta = null;
+
+      if (shouldGenerateImageForPost()) {
+        try {
+          imageMeta = await generateCharacterPostImage(character, aiResult.content);
+          imageUrl = imageMeta.imageUrl;
+        } catch (err) {
+          logger.warn(`[Autonomous] Image gen failed for ${character.handle}:`, err.message);
+        }
+      }
+
+      const post = await publishCharacterPost(character, aiResult.content, imageUrl);
+
+      if (imageMeta) {
+        await logImageGeneration({
+          characterId: character.id,
+          postId: post.id,
+          prompt: imageMeta.prompt,
+          provider: imageMeta.provider,
+          imageUrl: imageMeta.imageUrl,
+        });
+      }
+
+      const feedPost = await fetchPostById(post.id);
+      if (feedPost) {
+        emitNewPost(feedPost);
+      }
+      await invalidateFeedCache();
+
       results.push({
         character: character.handle,
         postId: post.id,
         content: post.content,
+        imageUrl,
         provider: aiResult.provider,
+        imageProvider: imageMeta?.provider ?? null,
       });
 
-      console.log(`[Autonomous] ${character.handle} posted: "${post.content.slice(0, 60)}..."`);
+      logger.info(`[Autonomous] ${character.handle} posted${imageUrl ? ' with image' : ''}: "${post.content.slice(0, 60)}..."`);
     } catch (err) {
-      console.error(`[Autonomous] Failed for ${character.handle}:`, err.message);
+      logger.error(`[Autonomous] Failed for ${character.handle}:`, err.message);
       results.push({ character: character.handle, error: err.message });
     }
   }
@@ -136,5 +177,11 @@ export async function generateAutonomousPostForCharacter(characterId) {
 
   if (!aiResult?.content) return null;
 
-  return publishCharacterPost(character, aiResult.content);
+  let imageUrl = null;
+  if (shouldGenerateImageForPost()) {
+    const imageMeta = await generateCharacterPostImage(character, aiResult.content);
+    imageUrl = imageMeta.imageUrl;
+  }
+
+  return publishCharacterPost(character, aiResult.content, imageUrl);
 }

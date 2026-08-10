@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../models/messaging.dart';
 import '../../models/session.dart';
 import '../../services/api_service.dart';
+import '../../services/offline_cache_service.dart';
+import '../../services/realtime_service.dart';
+import '../../services/voice_interaction_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/character_avatar.dart';
 
@@ -13,6 +15,7 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.api,
+    required this.realtime,
     required this.character,
     this.threadId,
     required this.energyRemaining,
@@ -21,6 +24,7 @@ class ChatScreen extends StatefulWidget {
   });
 
   final ApiService api;
+  final RealtimeService realtime;
   final AiCharacter character;
   final String? threadId;
   final int energyRemaining;
@@ -43,18 +47,66 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _threadId;
   late int _energyRemaining;
   Timer? _pollTimer;
+  StreamSubscription<MessagePayload>? _messageSub;
+  StreamSubscription<ReputationPayload>? _repSub;
+  late VoiceInteractionService _voice;
+  bool _voiceBusy = false;
 
   @override
   void initState() {
     super.initState();
     _threadId = widget.threadId;
     _energyRemaining = widget.energyRemaining;
+    _voice = VoiceInteractionService(api: widget.api);
+    _voice.init();
     _loadMessages();
+    _wireRealtime();
+  }
+
+  void _wireRealtime() {
+    _messageSub = widget.realtime.onNewMessage.listen((payload) {
+      final threadId = payload['threadId'] as String?;
+      if (threadId != _threadId) return;
+
+      final raw = payload['message'];
+      if (raw is! Map) return;
+
+      final message = DmMessage.fromJson(Map<String, dynamic>.from(raw));
+      if (!message.isCharacter) return;
+
+      setState(() {
+        _aiTyping = false;
+        if (!_messages.any((m) => m.id == message.id)) {
+          _messages = [..._messages, message];
+        }
+      });
+      _voice.speak(message.content);
+      if (_threadId != null) {
+        OfflineCacheService.cacheThreadMessages(_threadId!, _messages);
+      }
+      _pollTimer?.cancel();
+      _scrollToBottom();
+    });
+
+    _repSub = widget.realtime.onReputationChange.listen((payload) {
+      if (payload['threadId'] != _threadId) return;
+      final interaction = InteractionUpdate(
+        affinity: payload['affinity'] as int? ?? 0,
+        affinityDelta: payload['affinityDelta'] as int? ?? 0,
+        reputation: payload['reputation'] as int? ?? 0,
+        reputationDelta: payload['reputationDelta'] as int? ?? 0,
+        followerCount: payload['followerCount'] as int? ?? 0,
+      );
+      widget.onInteraction?.call(interaction);
+    });
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _messageSub?.cancel();
+    _repSub?.cancel();
+    _voice.dispose();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -64,6 +116,14 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_threadId == null) {
       setState(() => _loading = false);
       return;
+    }
+
+    final cached = OfflineCacheService.loadThreadMessages(_threadId!);
+    if (cached != null && cached.isNotEmpty) {
+      setState(() {
+        _messages = cached;
+        _loading = false;
+      });
     }
 
     try {
@@ -76,60 +136,55 @@ class _ChatScreenState extends State<ChatScreen> {
         _aiTyping = result.aiPending;
       });
 
+      if (_threadId != null) {
+        await OfflineCacheService.cacheThreadMessages(_threadId!, _messages);
+      }
+
       if (result.interaction != null) {
         widget.onInteraction?.call(result.interaction!);
       }
 
       _scrollToBottom();
 
-      if (result.aiPending) _startPolling();
+      if (result.aiPending && !widget.realtime.isConnected) {
+        _startPolling();
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      final hasCache = cached != null && cached.isNotEmpty;
+      setState(() {
+        _loading = false;
+        if (hasCache) _messages = cached;
+      });
+      if (!hasCache) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     }
   }
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 2000), (_) async {
       if (_threadId == null || !mounted) return;
 
       try {
         final result = await widget.api.fetchThreadMessages(_threadId!);
         if (!mounted) return;
 
-        final hadTyping = _aiTyping;
         setState(() {
           _messages = result.messages;
           _aiTyping = result.aiPending;
         });
 
-        if (result.messages.length > _messages.length || !result.aiPending) {
-          _scrollToBottom();
-        }
-
         if (result.interaction != null) {
           widget.onInteraction?.call(result.interaction!);
-
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Affinity ${result.interaction!.affinityDelta >= 0 ? '+' : ''}'
-                '${result.interaction!.affinityDelta} · '
-                'Rep ${result.interaction!.reputationDelta >= 0 ? '+' : ''}'
-                '${result.interaction!.reputationDelta}',
-              ),
-              duration: const Duration(seconds: 2),
-            ),
-          );
         }
 
-        if (hadTyping && !result.aiPending) {
+        if (!result.aiPending) {
           _pollTimer?.cancel();
+          _scrollToBottom();
         }
       } catch (_) {}
     });
@@ -191,7 +246,9 @@ class _ChatScreenState extends State<ChatScreen> {
       widget.onEnergyUpdated(result.energy);
       _scrollToBottom();
 
-      if (result.aiPending) _startPolling();
+      if (result.aiPending && !widget.realtime.isConnected) {
+        _startPolling();
+      }
     } on InsufficientEnergyException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -201,6 +258,23 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message), backgroundColor: AppColors.like),
+      );
+    } on ContentModerationException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages = _messages.where((m) => !m.isPending).toList();
+        _sending = false;
+        _aiTyping = false;
+      });
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Message blocked'),
+          content: Text(e.message),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+          ],
+        ),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -212,6 +286,43 @@ class _ChatScreenState extends State<ChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message)),
       );
+    }
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_voiceBusy || _sending) return;
+
+    if (!_voice.isRecording) {
+      try {
+        await _voice.startRecording();
+        setState(() => _voiceBusy = true);
+      } on VoiceException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+
+    setState(() => _voiceBusy = true);
+    try {
+      final text = await _voice.stopRecordingAndTranscribe();
+      if (!mounted) return;
+      if (text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not understand audio')),
+        );
+        return;
+      }
+      _controller.text = text;
+      await _send();
+    } on VoiceException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _voiceBusy = false);
     }
   }
 
@@ -294,6 +405,15 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             child: Row(
               children: [
+                IconButton.filled(
+                  onPressed: _voiceBusy ? null : _toggleVoice,
+                  style: IconButton.styleFrom(
+                    backgroundColor: _voice.isRecording ? AppColors.like : AppColors.surfaceElevated,
+                  ),
+                  icon: Icon(_voice.isRecording ? Icons.stop_rounded : Icons.mic_rounded),
+                  tooltip: _voice.isRecording ? 'Stop & send' : 'Voice message',
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -437,7 +557,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                   children: List.generate(3, (i) {
                     final delay = i * 0.2;
                     final t = (_controller.value - delay).clamp(0.0, 1.0);
-                    final opacity = (math.sin(t * math.pi)).abs();
+                    final opacity = (t * 3.1415926535).clamp(0.0, 1.0);
                     return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       width: 6,

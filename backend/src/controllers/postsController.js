@@ -2,6 +2,11 @@ import pool, { query } from '../config/database.js';
 import { ENERGY_COSTS, spendEnergy } from '../services/energyService.js';
 import { queuePostAiReply } from '../services/messageQueueService.js';
 import { notFound, validationError } from '../utils/errors.js';
+import { fetchPostById } from '../services/postFormatter.js';
+import { emitNewPost } from '../services/socketService.js';
+import { getCachedFeed, setCachedFeed, invalidateFeedCache } from '../services/feedCacheService.js';
+import { logEvent } from '../services/analyticsService.js';
+import { requireContentModeration } from '../middleware/moderation.js';
 
 const FEED_SELECT = `
   SELECT
@@ -31,7 +36,13 @@ const FEED_SELECT = `
 export async function listPosts(req, res) {
   const limit = Math.min(parseInt(req.query.limit ?? '20', 10), 50);
   const offset = parseInt(req.query.offset ?? '0', 10);
-  const fandom = req.query.fandom;
+  const fandom = req.query.fandom ?? null;
+
+  const cacheParams = { limit, offset, fandom };
+  const cached = await getCachedFeed(cacheParams);
+  if (cached) {
+    return res.json({ ...cached, meta: { ...cached.meta, cached: true } });
+  }
 
   let sql = `${FEED_SELECT} WHERE p.parent_post_id IS NULL`;
   const params = [];
@@ -45,7 +56,9 @@ export async function listPosts(req, res) {
   sql += ` ORDER BY p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
   const { rows } = await query(sql, params);
-  res.json({ data: rows, meta: { limit, offset } });
+  const payload = { data: rows, meta: { limit, offset, cached: false } };
+  await setCachedFeed(cacheParams, payload);
+  res.json(payload);
 }
 
 export async function getPost(req, res) {
@@ -74,6 +87,8 @@ export async function createPost(req, res) {
     throw validationError('content is required');
   }
 
+  await requireContentModeration({ userId, text: content, imageUrl: imageUrl ?? null });
+
   const urls = mediaUrls ?? [];
   const primaryImage = imageUrl ?? (urls.length > 0 ? urls[0] : null);
   const allMedia = primaryImage
@@ -96,6 +111,18 @@ export async function createPost(req, res) {
 
     await client.query('COMMIT');
 
+    await invalidateFeedCache();
+    await logEvent({
+      userId,
+      eventType: 'energy_spent',
+      metadata: { action: 'post', spent: energyResult.spent },
+    });
+
+    const feedPost = await fetchPostById(rows[0].id);
+    if (feedPost) {
+      emitNewPost(feedPost);
+    }
+
     res.status(201).json({
       data: rows[0],
       energy: energyResult.state,
@@ -117,6 +144,8 @@ export async function replyToPost(req, res) {
   if (!content?.trim()) {
     throw validationError('content is required');
   }
+
+  await requireContentModeration({ userId, text: content });
 
   const { rows: parentRows } = await query(
     `SELECT id, content, fandom, author_user_id, author_character_id
@@ -160,6 +189,12 @@ export async function replyToPost(req, res) {
   }
 
   client.release();
+
+  await logEvent({
+    userId,
+    eventType: 'energy_spent',
+    metadata: { action: 'reply', spent: energyResult.spent },
+  });
 
   if (parent.author_character_id) {
     queuePostAiReply({

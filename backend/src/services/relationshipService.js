@@ -164,6 +164,7 @@ export async function listExploreCharacters(userId) {
      LEFT JOIN dm_threads t
        ON t.character_id = c.id AND t.user_id = $1
      WHERE c.is_active = TRUE
+       AND (c.is_published = TRUE OR c.creator_user_id IS NULL)
      ORDER BY c.fandom, c.follower_count DESC`,
     [userId]
   );

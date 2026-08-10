@@ -13,11 +13,41 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_secure_storage: ^9.2.4
   image_picker: ^1.1.2
+  socket_io_client: ^3.0.2
+  flutter_local_notifications: ^18.0.1
+  permission_handler: ^11.4.0
+  flutter_dotenv: ^5.2.1
+  flutter_ai_assistant: ^0.2.0
+  record: ^5.2.1
+  flutter_tts: ^4.2.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^6.1.4
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.4
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/app_icon.png
+    - .env.example
+
+flutter_native_splash:
+  color: "#0f0f14"
+  image: assets/branding/app_icon.png
+  android_12:
+    color: "#0f0f14"
+    image: assets/branding/app_icon.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/app_icon.png
+  adaptive_icon_background: "#0f0f14"
+  adaptive_icon_foreground: assets/branding/app_icon.png

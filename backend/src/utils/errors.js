@@ -22,3 +22,9 @@ export function notFound(resource) {
 export function validationError(message) {
   return new AppError(message, 400, 'VALIDATION_ERROR');
 }
+
+export function contentModerationError(message, categories = []) {
+  const err = new AppError(message, 422, 'CONTENT_MODERATION');
+  err.categories = categories;
+  return err;
+}

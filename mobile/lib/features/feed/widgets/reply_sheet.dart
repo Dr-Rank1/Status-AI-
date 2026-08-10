@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../models/post.dart';
+import '../../../main.dart' show permissionService;
 import '../../../theme/app_theme.dart';
 
 Future<String?> showReplySheet(
@@ -176,6 +177,9 @@ class _ComposeSheetState extends State<_ComposeSheet> {
   bool get _hasText => _controller.text.trim().isNotEmpty;
 
   Future<void> _pickImage() async {
+    final allowed = await permissionService.ensurePhotosAccess();
+    if (!allowed) return;
+
     final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1200);
     if (picked != null) {
       setState(() => _imageFile = File(picked.path));

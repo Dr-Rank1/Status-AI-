@@ -1,9 +1,14 @@
 import cron from 'node-cron';
 import { generateAutonomousPostsForAll } from '../services/autonomousPostService.js';
 import {
+  triggerRandomNarrativeEvent,
+  expireStaleEvents,
+} from '../services/narrativeEventService.js';
+import {
   regenerateStaleEnergy,
   applyCooldownRegen,
 } from '../services/energyRegenService.js';
+import { logger } from '../utils/logger.js';
 
 const CRON_ENABLED = process.env.CRON_ENABLED !== 'false';
 
@@ -11,11 +16,13 @@ const AI_POST_CRON = process.env.AI_POST_CRON ?? '0 */4 * * *';
 const ENERGY_DAILY_CRON = process.env.ENERGY_DAILY_CRON ?? '0 0 * * *';
 const ENERGY_COOLDOWN_CRON = process.env.ENERGY_COOLDOWN_CRON ?? '0 * * * *';
 
+const NARRATIVE_EVENT_CRON = process.env.NARRATIVE_EVENT_CRON ?? '0 12 * * *';
+
 let jobs = [];
 
 function schedule(name, expression, handler) {
   if (!cron.validate(expression)) {
-    console.warn(`[Cron] Invalid expression for ${name}: ${expression}`);
+    logger.warn(`[Cron] Invalid expression for ${name}: ${expression}`);
     return null;
   }
 
@@ -23,17 +30,17 @@ function schedule(name, expression, handler) {
     try {
       await handler();
     } catch (err) {
-      console.error(`[Cron] ${name} failed:`, err.message);
+      logger.error(`[Cron] ${name} failed:`, err.message);
     }
   });
 
-  console.log(`[Cron] Scheduled "${name}" → ${expression}`);
+  logger.info(`[Cron] Scheduled "${name}" → ${expression}`);
   return job;
 }
 
 export function startScheduledJobs() {
   if (!CRON_ENABLED) {
-    console.log('[Cron] Disabled (CRON_ENABLED=false)');
+    logger.info('[Cron] Disabled (CRON_ENABLED=false)');
     return;
   }
 
@@ -41,7 +48,13 @@ export function startScheduledJobs() {
     schedule('autonomous-ai-posts', AI_POST_CRON, async () => {
       const results = await generateAutonomousPostsForAll();
       const posted = results.filter((r) => r.postId).length;
-      console.log(`[Cron] Autonomous posts complete: ${posted}/${results.length} characters`);
+      logger.info(`[Cron] Autonomous posts complete: ${posted}/${results.length} characters`);
+    }),
+
+    schedule('narrative-events', NARRATIVE_EVENT_CRON, async () => {
+      await expireStaleEvents();
+      const result = await triggerRandomNarrativeEvent();
+      logger.info(`[Cron] Narrative event: ${result.event.title} (${result.reactions.length} reactions)`);
     }),
 
     schedule('energy-daily-reset', ENERGY_DAILY_CRON, async () => {
@@ -53,7 +66,7 @@ export function startScheduledJobs() {
     }),
   ].filter(Boolean);
 
-  console.log(`[Cron] ${jobs.length} job(s) active`);
+  logger.info(`[Cron] ${jobs.length} job(s) active`);
 }
 
 export function stopScheduledJobs() {
