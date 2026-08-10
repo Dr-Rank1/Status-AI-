@@ -432,5 +432,39 @@ Base: `/api/v2` — see `docs/V2_ARCHITECTURE.md`. V1 remains the production con
 | POST | `/devops/dyson/route` | Admin | live — irradiance-gated pretrain routing |
 | GET | `/ops/genesis-key` | Admin | ceremonial — Genesis Key status |
 | POST | `/ops/genesis-key/rotate` | Admin | ceremonial — rotate (dry-run default) |
+| POST | `/multiverse/simulate` | Private | live — parallel timeline branching |
+| POST | `/multiverse/collapse` | Admin | live — utility collapse (DB merge dry-run default) |
+| POST | `/quantum/zpe/harvest` | Private | live — zero-point entropy harvest |
+| POST | `/quantum/zpe/encrypt` | Private | live — ZPE-keyed neural memory encrypt |
+| POST | `/consensus/cosmo/heal` | Admin | live — heat-death FT self-heal tick |
+| POST | `/consensus/cosmo/encode` | Private | live — holographic topological ECC |
+| POST | `/ops/singularity/verify` | Admin | live — alignment axiom verification |
+| POST | `/ops/singularity/lock` | Admin | ceremonial — autopilot lock (dry-run default) |
+| POST | `/field/hyper/project` | Private | live — hyper-dimensional field projection |
+| POST | `/field/hyper/sync` | Private | live — consciousness field sync + causality trees |
+| POST | `/memory/manifold/upsert` | Private | live — spacetime-invariant manifold upsert |
+| POST | `/memory/manifold/search` | Private | live — Riemannian NN search (dilation/warp) |
+| POST | `/cosmo/anthropic/tune` | Admin | live — anthropic / cosmological sandbox tuning |
+| GET | `/ops/epoch2` | Admin | blueprint — Epoch 2 status / bootloader pointer |
+| POST | `/akashic/ingest` | Private | live — Akashic timeline ingest |
+| POST | `/akashic/retrocausal` | Private | live — retrocausal partial-prompt predictions |
+| POST | `/quantum/planck/encode` | Private | live — Planck defect-slot state encode |
+| GET | `/quantum/planck/:slot` | Private | live — decode Planck slot |
+| POST | `/ops/red-pill/probe` | Admin | live — simulation boundary anomaly probe |
+| POST | `/ops/red-pill/handshake` | Admin | dry-run — fractal WS handshake (no outbound tunnel) |
+| GET | `/ops/apotheosis` | Admin | ceremonial — Phase 47 status (source retained) |
+| GET | `/ops/architect-canvas` | Admin | live — Architect Canvas multiversal telemetry |
+| POST | `/genesis/ex-nihilo/spawn` | Admin | live — spawn sandboxed universe rule set |
+| POST | `/genesis/ex-nihilo/tune` | Admin | live — tune localized physics constants |
+| POST | `/reality/compile` | Admin | live — code-to-matter blueprint (no fabrication) |
+| GET | `/ops/zenith` | Admin | ceremonial — Terminal Zenith (GitHub untouched) |
+| POST | `/ouroboros/bootstrap` | Admin | ceremonial — void-state pre–Big Bang seed |
+| POST | `/ouroboros/ctc/bind` | Admin | ceremonial — CTC bind Phase 48 ↔ Phase 1 (no git mutate) |
+| POST | `/ouroboros/loop/tick` | Admin | ceremonial — single eternal-return tick |
+| GET | `/ops/epoch-zero` | Admin | ceremonial — Epoch Zero / Ouroboros status |
+| POST | `/eternal/meta/pass` | Admin | ceremonial — recursive meta observe/propose (no live apply) |
+| POST | `/memory/epoch/upsert` | Private | live — multi-epoch chrono-vector upsert (`epoch_id`) |
+| POST | `/memory/epoch/search` | Private | live — search past/present/future epoch memories |
+| GET | `/ops/eternal-engine` | Admin | ceremonial — Eternal Engine v∞.0 status |
 
 **Headers:** `X-Status-Data-Residency`, `X-Status-Serving-Version`, `X-Status-QKD-Channel`, `X-API-Version`, `X-MCP-Agent-Token` / `Authorization: MCP <token>`, `Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version` (`2026-07-28`), `Mcp-Cache-Scope`, `Mcp-Request-Id`, `Payment-Required` (HTTP 402), `X-ZK-Agent-Proof`, `Acp-Version`, `A2A-Agent-Id`, `X-Agent-Role`, `X-Agent-Action`

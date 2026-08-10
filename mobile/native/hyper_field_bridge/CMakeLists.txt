@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(status_hyper_field LANGUAGES CXX)
+add_library(status_hyper_field SHARED src/status_hyper_field.cpp)
+target_include_directories(status_hyper_field PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(status_hyper_field PUBLIC cxx_std_17)
+target_compile_options(status_hyper_field PRIVATE -O3)

@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.16)
+project(status_planck LANGUAGES CXX)
+add_library(status_planck SHARED src/status_planck.cpp)
+target_include_directories(status_planck PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(status_planck PUBLIC cxx_std_17)

@@ -20,6 +20,8 @@ import 'services/theme_config_service.dart';
 import 'services/v2_beta_service.dart';
 import 'models/theme_config.dart';
 import 'utils/desktop_platform.dart';
+import 'services/omni_dimensional_shell_service.dart';
+import 'widgets/omni_dimensional_shell.dart';
 
 final notificationService = NotificationService();
 final realtimeService = RealtimeService();
@@ -53,6 +55,7 @@ Future<void> _bootstrapAndRun() async {
   await SpatialContextService.init();
   await themeConfigService.load();
   await V2BetaService.instance.load();
+  await OmniDimensionalShellService.instance.load();
 
   apiService = ApiService(tenantSlug: themeConfigService.tenantHeaderSlug);
   analyticsService = AnalyticsService(api: apiService);
@@ -116,11 +119,14 @@ class StatusApp extends StatelessWidget {
         title: themeConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(themeConfig),
-        home: AuthGate(
-          api: api,
-          realtime: realtime,
-          notifications: notifications,
-          analytics: analytics,
+        home: OmniDimensionalShell(
+          themeConfig: themeConfig,
+          child: AuthGate(
+            api: api,
+            realtime: realtime,
+            notifications: notifications,
+            analytics: analytics,
+          ),
         ),
       ),
     );
