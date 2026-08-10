@@ -20,6 +20,15 @@ function vectorMemoryBlock(context) {
   ].join('\n');
 }
 
+function temporalKnowledgeBlock(context) {
+  const parts = [
+    context.zeroCopyPromptBlock,
+    context.unifiedMemoryPromptBlock,
+    context.temporalPromptBlock,
+  ].filter(Boolean);
+  return parts.join('\n\n');
+}
+
 function narrativeBlock(context) {
   const event = context.globalNarrative;
   if (!event?.global_prompt) return '';
@@ -257,10 +266,12 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
       ? `Long-term memory (summarized earlier conversation):\n${context.memorySummary}`
       : '';
     const vectorBlock = vectorMemoryBlock(context);
+    const temporalBlock = temporalKnowledgeBlock(context);
 
     return [
       memoryBlock,
       vectorBlock,
+      temporalBlock,
       history ? `Recent conversation:\n${history}` : '',
       `${userLabel} says: "${incomingMessage}"`,
       `Respond as ${context.character.name}.`,

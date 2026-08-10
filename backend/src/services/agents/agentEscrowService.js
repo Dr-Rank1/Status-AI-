@@ -33,8 +33,35 @@ export async function createEscrow({
   metadata = {},
   mcpIdentity = null,
 }) {
+  const { assertAgentsNotKilled } = await import('../security/globalKillSwitchService.js');
+  assertAgentsNotKilled();
+
   if (mcpIdentity) {
     assertAgentScope(mcpIdentity, 'escrow:create');
+  }
+
+  const { enforceGovernanceOrEscalate } = await import('../governance/governanceAsCode.js');
+  const gov = await enforceGovernanceOrEscalate({
+    action: 'escrow:create',
+    amount,
+    agentBinding: mcpIdentity
+      ? { agentRole: mcpIdentity.role, scopes: mcpIdentity.scopes }
+      : { agentRole: 'transaction', scopes: ['escrow:create', 'wallet:debit'] },
+    characterId,
+    pendingAction: {
+      type: 'escrow',
+      characterId,
+      counterparty,
+      amount,
+      currency,
+      purpose,
+      metadata,
+    },
+    autoEscalate: metadata?.autoEscalate !== false,
+  });
+
+  if (gov.escalated) {
+    return { status: 'awaiting_human', governance: gov, hitl: gov.hitl };
   }
 
   const wallet = await getOrCreateWallet(characterId);
@@ -73,6 +100,20 @@ export async function createEscrow({
       salt,
     ],
   );
+
+  try {
+    const { appendAuditEvent } = await import('../security/immutableAuditLedger.js');
+    await appendAuditEvent({
+      type: 'escrow.create',
+      actor: mcpIdentity?.role ?? 'transaction',
+      action: 'escrow:create',
+      decision: 'locked',
+      metadata: { contractAddress, amount, currency },
+      characterId,
+    });
+  } catch {
+    /* audit best-effort */
+  }
 
   logger.info(`[Escrow] locked ${amount} ${currency} contract=${contractAddress}`);
   return rows[0];

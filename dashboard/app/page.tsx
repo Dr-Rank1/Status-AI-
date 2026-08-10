@@ -13,6 +13,8 @@ export default function HomePage() {
           <li><Link href="/theme">Customize branding & colors</Link></li>
           <li><Link href="/characters">Tune AI character prompts</Link></li>
           <li><Link href="/moderation">Moderate users</Link></li>
+          <li><Link href="/agent-economy">Agent Economy ledger</Link></li>
+          <li><Link href="/command-center">Agentic Command Center</Link></li>
         </ul>
       </div>
       <div className="card">

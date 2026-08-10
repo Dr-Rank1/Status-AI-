@@ -346,5 +346,46 @@ Base: `/api/v2` — see `docs/V2_ARCHITECTURE.md`. V1 remains the production con
 | POST | `/mcp/mrtr/pause` | Private | live — MRTR human-in-the-loop pause |
 | POST | `/mcp/mrtr/resume` | Private | live — resume on any instance |
 | GET | `/mcp/mrtr/:id` | Private | live — fetch requestState |
+| GET | `/context/temporal` | Private | live — temporal KG chronology RAG |
+| GET | `/ops/economy` | Admin | live — agent HTTP 402 ledger / velocity |
+| POST | `/webrtc/session` | Private | live — multi-modal WebRTC avatar session |
+| POST | `/webrtc/session/:id/frame` | Private | live — push avatar/spatial-audio frame |
+| POST | `/governance/zk/prove` | Private | live — zk-SNARK agent compliance proof |
+| POST | `/governance/zk/verify` | Private | live — verify governance proof |
+| GET | `/governance/zk/config` | Private | live — policy catalog |
+| POST | `/agents/:id/privileged` | Private | live — privileged action gated by zk proof |
+| POST | `/cognitive/modulate` | Private | live — bio-adaptive LLM/UI controls |
+| POST | `/metaverse/crdt/merge` | Private | live — cross-engine CRDT spatial sync |
+| GET | `/consensus/status` | Private | live — Raft mesh state |
+| POST | `/consensus/elect` | Private | live — trigger election |
+| POST | `/consensus/propose` | Private | live — propose log entry |
+| POST | `/consensus/scale` | Admin | live — quorum placement from traffic |
+| GET | `/a2a/cards` | Private | live — A2A agent card directory |
+| POST | `/a2a/cards` | Private | live — register enterprise agent |
+| POST | `/a2a/discover` | Private | live — capability discovery |
+| POST | `/a2a/delegate` | Private | live — ACP task delegation |
+| GET | `/graph/config` | Private | live — graph orchestrator schema |
+| POST | `/graph/run` | Private | live — start LangGraph-style run |
+| GET | `/graph/:runId` | Private | live — checkpoint / status |
+| POST | `/graph/:runId/resume` | Private | live — resume after HITL |
+| POST | `/reason/tot` | Private | live — Tree-of-Thoughts reasoning |
+| POST | `/memory/unified` | Private | live — unified memory + re-rank RAG |
+| GET | `/ops/command-center` | Admin | live — Agentic Command Center snapshot |
+| GET/POST | `/ops/kill-switch` | Admin | live — global agent halt / release |
+| GET | `/ops/audit` | Admin | live — immutable hash-chained ledger |
+| GET | `/governance/policy` | Private | live — Governance-as-Code + NIST RMF |
+| POST | `/governance/evaluate` | Private | live — evaluate action risk / HITL |
+| GET | `/context/zero-copy` | Private | live — in-place enterprise signals |
+| GET | `/puppeteer/config` | Private | live — Puppeteer pattern config |
+| POST | `/puppeteer/assemble` | Private | live — assemble dynamic topology |
+| POST | `/puppeteer/run` | Private | live — run puppeteer swarm |
+| POST | `/puppeteer/:id/reconfigure` | Private | live — reconfigure topology |
+| GET | `/hologram/config` | Private | live — OpenXR hologram layout |
+| POST | `/voice/duplex/session` | Private | live — cognitive full-duplex voice |
+| POST | `/voice/duplex/:id/prosody` | Private | live — bio-adaptive prosody update |
+| POST | `/voice/duplex/:id/barge-in` | Private | live — user interrupt |
+| GET | `/consensus/dag` | Private | live — DAG ledger tip / config |
+| POST | `/consensus/dag/propose` | Private | live — quorum proposal |
+| POST | `/consensus/dag/vote` | Private | live — cast quorum vote |
 
-**Headers:** `X-Status-Data-Residency`, `X-Status-Serving-Version`, `X-Status-QKD-Channel`, `X-API-Version`, `X-MCP-Agent-Token` / `Authorization: MCP <token>`, `Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version` (`2026-07-28`), `Mcp-Cache-Scope`, `Mcp-Request-Id`
+**Headers:** `X-Status-Data-Residency`, `X-Status-Serving-Version`, `X-Status-QKD-Channel`, `X-API-Version`, `X-MCP-Agent-Token` / `Authorization: MCP <token>`, `Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version` (`2026-07-28`), `Mcp-Cache-Scope`, `Mcp-Request-Id`, `Payment-Required` (HTTP 402), `X-ZK-Agent-Proof`, `Acp-Version`, `A2A-Agent-Id`, `X-Agent-Role`, `X-Agent-Action`

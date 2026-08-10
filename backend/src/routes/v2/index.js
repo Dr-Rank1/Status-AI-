@@ -97,6 +97,71 @@ router.get('/version', (_req, res) => {
           protocolVersion: '2026-07-28',
           endpoints: ['/api/v2/mcp', '/api/v2/mcp/swarm', '/api/v2/mcp/mrtr'],
         },
+        temporalKg: {
+          status: 'live',
+          endpoints: ['/api/v2/context/temporal', '/api/v2/ops/economy'],
+        },
+        webrtcAvatar: {
+          status: 'live',
+          endpoints: ['/api/v2/webrtc/session'],
+        },
+        zkGovernance: {
+          status: 'live',
+          endpoints: ['/api/v2/governance/zk/prove', '/api/v2/governance/zk/verify'],
+        },
+        bioCognitive: {
+          status: 'live',
+          endpoints: ['/api/v2/cognitive/modulate'],
+        },
+        consensusMesh: {
+          status: 'live',
+          endpoints: ['/api/v2/consensus/status', '/api/v2/consensus/elect'],
+        },
+        a2a: {
+          status: 'live',
+          endpoints: ['/api/v2/a2a/cards', '/api/v2/a2a/delegate'],
+        },
+        graphOrchestrator: {
+          status: 'live',
+          endpoints: ['/api/v2/graph/run', '/api/v2/graph/:id/resume'],
+        },
+        treeOfThoughts: {
+          status: 'live',
+          endpoints: ['/api/v2/reason/tot'],
+        },
+        unifiedMemory: {
+          status: 'live',
+          endpoints: ['/api/v2/memory/unified'],
+        },
+        commandCenter: {
+          status: 'live',
+          endpoints: ['/api/v2/ops/command-center', '/api/v2/ops/kill-switch', '/api/v2/ops/audit'],
+        },
+        governanceAsCode: {
+          status: 'live',
+          framework: 'NIST-AI-RMF-1.0',
+          endpoints: ['/api/v2/governance/policy', '/api/v2/governance/evaluate'],
+        },
+        zeroCopy: {
+          status: 'live',
+          endpoints: ['/api/v2/context/zero-copy'],
+        },
+        puppeteer: {
+          status: 'live',
+          endpoints: ['/api/v2/puppeteer/run', '/api/v2/puppeteer/assemble'],
+        },
+        hologramSwarm: {
+          status: 'live',
+          endpoints: ['/api/v2/hologram/config'],
+        },
+        cognitiveVoice: {
+          status: 'live',
+          endpoints: ['/api/v2/voice/duplex/session'],
+        },
+        dagQuorum: {
+          status: 'live',
+          endpoints: ['/api/v2/consensus/dag/propose'],
+        },
       },
       deprecations: [],
       migrationGuide: 'See docs/V2_ARCHITECTURE.md',
@@ -487,4 +552,758 @@ router.get(
   }),
 );
 
+/** Phase 35 — Temporal KG + economy + WebRTC */
+router.get(
+  '/context/temporal',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { queryTemporalContext, getTemporalKgConfig, TEMPORAL_KG_SCHEMA_CYPHER } = await import(
+      '../../services/context/temporalKnowledgeGraph.js'
+    );
+    const characterId = req.query.characterId;
+    if (!characterId) {
+      return res.status(400).json({ error: { code: 'VALIDATION', message: 'characterId required' } });
+    }
+    const data = await queryTemporalContext({
+      userId: req.user.id,
+      characterId,
+      asOf: req.query.asOf,
+      limit: parseInt(req.query.limit ?? '8', 10),
+    });
+    res.json({
+      data: {
+        ...data,
+        config: getTemporalKgConfig(),
+        schemaPreview: TEMPORAL_KG_SCHEMA_CYPHER.slice(0, 280),
+      },
+    });
+  }),
+);
+
+router.get(
+  '/ops/economy',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { getEconomyVelocity, MCP_TOOL_PRICES } = await import(
+      '../../services/mcp/mcpPaymentService.js'
+    );
+    const velocity = await getEconomyVelocity({
+      sinceHours: parseInt(req.query.sinceHours ?? '24', 10),
+    });
+    res.json({ data: { ...velocity, prices: MCP_TOOL_PRICES } });
+  }),
+);
+
+router.post(
+  '/webrtc/session',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { createAvatarStreamSession, getWebrtcConfig } = await import(
+      '../../services/webrtc/avatarStreamService.js'
+    );
+    const session = await createAvatarStreamSession({
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      modalities: req.body.modalities ?? ['avatar3d', 'spatial_audio', 'text'],
+      threadId: req.body.threadId,
+    });
+    res.status(201).json({ data: { session, config: getWebrtcConfig() } });
+  }),
+);
+
+router.post(
+  '/webrtc/session/:id/frame',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { pushMultimodalFrame } = await import('../../services/webrtc/avatarStreamService.js');
+    const result = pushMultimodalFrame({
+      sessionId: req.params.id,
+      avatar: req.body.avatar,
+      spatialAudio: req.body.spatialAudio,
+      textDelta: req.body.textDelta,
+    });
+    res.json({ data: result });
+  }),
+);
+
+/** Phase 36 — ZK governance, bio-cognitive, consensus */
+router.get(
+  '/governance/zk/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getZkGovernanceConfig, GOVERNANCE_POLICIES } = await import(
+      '../../services/governance/zkAgentGovernanceService.js'
+    );
+    res.json({ data: { ...getZkGovernanceConfig(), policies: GOVERNANCE_POLICIES } });
+  }),
+);
+
+router.post(
+  '/governance/zk/prove',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const {
+      proveAgentCompliance,
+      persistProofNullifier,
+    } = await import('../../services/governance/zkAgentGovernanceService.js');
+    const issued = proveAgentCompliance({
+      policyId: req.body.policyId ?? 'safety_guardrails',
+      agentRole: req.body.agentRole ?? 'transaction',
+      action: req.body.action ?? 'tools/call',
+      agentJti: req.body.agentJti,
+      characterId: req.body.characterId,
+      userContext: req.body.userContext,
+      memoryBankDigest: req.body.memoryBankDigest,
+      taskResultDigest: req.body.taskResultDigest,
+      guardrailPassed: req.body.guardrailPassed !== false,
+      privacyPassed: req.body.privacyPassed !== false,
+    });
+    await persistProofNullifier(issued.nullifier, req.body.policyId ?? 'safety_guardrails', issued.proof.commitment);
+    // Strip any accidental private fields — only public proof returned
+    res.status(201).json({
+      data: {
+        proofToken: issued.proofToken,
+        publicSignals: issued.publicSignals,
+        nullifier: issued.nullifier,
+        expiresAt: issued.expiresAt,
+        proof: {
+          protocol: issued.proof.protocol,
+          curve: issued.proof.curve,
+          pi_a: issued.proof.pi_a,
+          pi_b: issued.proof.pi_b,
+          pi_c: issued.proof.pi_c,
+          publicSignals: issued.proof.publicSignals,
+          policyId: issued.proof.policyId,
+          action: issued.proof.action,
+          agentRole: issued.proof.agentRole,
+          nullifier: issued.proof.nullifier,
+          commitment: issued.proof.commitment,
+          expiresAt: issued.proof.expiresAt,
+          v: issued.proof.v,
+          sig: issued.proof.sig,
+        },
+      },
+    });
+  }),
+);
+
+router.post(
+  '/governance/zk/verify',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { verifyAgentComplianceProof } = await import(
+      '../../services/governance/zkAgentGovernanceService.js'
+    );
+    const result = verifyAgentComplianceProof(req.body.proofToken ?? req.body.proof, {
+      expectedPolicy: req.body.expectedPolicy,
+      expectedAction: req.body.expectedAction,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.post(
+  '/agents/:characterId/privileged',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { zkAgentGovernanceMiddleware } = await import(
+      '../../services/governance/zkAgentGovernanceService.js'
+    );
+    await new Promise((resolve, reject) => {
+      zkAgentGovernanceMiddleware({
+        policyId: req.body.policyId ?? 'safety_guardrails',
+        action: req.body.action ?? 'escrow:create',
+        required: true,
+      })(req, res, (err) => (err ? reject(err) : resolve()));
+    });
+    res.json({
+      data: {
+        authorized: true,
+        characterId: req.params.characterId,
+        governance: req.zkGovernance,
+        note: 'Privileged action authorized via zk-SNARK governance proof',
+      },
+    });
+  }),
+);
+
+router.post(
+  '/cognitive/modulate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { assessCognitiveState, modulateCognitiveControls } = await import(
+      '../../services/cognitive/bioAdaptiveService.js'
+    );
+    const state = assessCognitiveState({
+      bci: req.body.bci ?? {},
+      biometrics: req.body.biometrics ?? {},
+    });
+    const controls = modulateCognitiveControls(state, {
+      baseTemperature: req.body.baseTemperature,
+      baseEmpathy: req.body.baseEmpathy,
+    });
+    res.json({ data: controls });
+  }),
+);
+
+router.post(
+  '/metaverse/crdt/merge',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    // Server acknowledges CRDT docs for cross-engine sync (authoritative merge is client-side CRDT)
+    const doc = req.body.document ?? req.body;
+    const { getIO } = await import('../../services/socketService.js');
+    const io = getIO();
+    const syncToken = req.body.syncToken;
+    if (io && syncToken) {
+      io.to(`metaverse:${syncToken}`).emit('metaverse_crdt_sync', {
+        document: doc,
+        from: req.user.id,
+        at: Date.now(),
+      });
+    }
+    res.json({
+      data: {
+        accepted: true,
+        engines: ['flutter', 'unity', 'unreal', 'openxr'],
+        lamport: doc?.lamport ?? null,
+      },
+    });
+  }),
+);
+
+router.get(
+  '/consensus/status',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getConsensusConfig, getCommittedLog } = await import(
+      '../../services/consensus/raftConsensusMesh.js'
+    );
+    res.json({ data: { ...getConsensusConfig(), log: getCommittedLog({ limit: 20 }) } });
+  }),
+);
+
+router.post(
+  '/consensus/peers',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { registerPeer } = await import('../../services/consensus/raftConsensusMesh.js');
+    res.status(201).json({
+      data: registerPeer({
+        peerId: req.body.peerId ?? `peer-${req.user.id.slice(0, 8)}`,
+        region: req.body.region ?? 'local',
+        webrtcEndpoint: req.body.webrtcEndpoint,
+        weight: req.body.weight ?? 1,
+      }),
+    });
+  }),
+);
+
+router.post(
+  '/consensus/elect',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { startElection } = await import('../../services/consensus/raftConsensusMesh.js');
+    res.json({ data: startElection() });
+  }),
+);
+
+router.post(
+  '/consensus/propose',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { proposeEntry, startElection, getConsensusConfig } = await import(
+      '../../services/consensus/raftConsensusMesh.js'
+    );
+    let result = proposeEntry(req.body.command ?? req.body);
+    if (!result.accepted) {
+      startElection();
+      result = proposeEntry(req.body.command ?? req.body);
+    }
+    res.json({ data: { ...result, config: getConsensusConfig() } });
+  }),
+);
+
+router.post(
+  '/consensus/scale',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { recommendQuorumScale } = await import('../../services/consensus/raftConsensusMesh.js');
+    res.json({
+      data: recommendQuorumScale(req.body.trafficByRegion ?? req.body.traffic ?? {}),
+    });
+  }),
+);
+
+/** Phase 37 — A2A / Graph / ToT / Unified memory */
+router.get(
+  '/a2a/cards',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { listAgentCards, getA2aConfig } = await import('../../services/a2a/a2aProtocol.js');
+    res.json({
+      data: {
+        config: getA2aConfig(),
+        cards: listAgentCards({
+          capability: req.query.capability,
+          enterprise: req.query.enterprise === 'true' ? true : req.query.enterprise === 'false' ? false : null,
+        }),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/a2a/cards',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { registerAgentCard } = await import('../../services/a2a/a2aProtocol.js');
+    const card = registerAgentCard(req.body);
+    res.status(201).json({ data: card });
+  }),
+);
+
+router.post(
+  '/a2a/discover',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { discoverAgentsForTask } = await import('../../services/a2a/a2aProtocol.js');
+    res.json({
+      data: discoverAgentsForTask({
+        task: req.body.task ?? req.body.message,
+        requiredCapabilities: req.body.requiredCapabilities ?? [],
+      }),
+    });
+  }),
+);
+
+router.post(
+  '/a2a/delegate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { discoverAndDelegate, createAcpMessage, dispatchAcp } = await import(
+      '../../services/a2a/a2aProtocol.js'
+    );
+    if (req.body.to && req.body.method) {
+      const message = createAcpMessage({
+        from: req.body.from ?? 'status.api',
+        to: req.body.to,
+        method: req.body.method,
+        params: req.body.params ?? {},
+      });
+      const result = await dispatchAcp(message, {
+        userId: req.user.id,
+        characterId: req.body.characterId,
+      });
+      return res.json({ data: { message, result } });
+    }
+    const result = await discoverAndDelegate({
+      task: req.body.task ?? req.body.message,
+      requiredCapabilities: req.body.requiredCapabilities ?? [],
+      preferEnterprise: Boolean(req.body.preferEnterprise),
+      tool: req.body.tool,
+      arguments: req.body.arguments ?? {},
+      ctx: { userId: req.user.id, characterId: req.body.characterId },
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.get(
+  '/graph/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getGraphConfig } = await import('../../services/orchestration/graphOrchestrator.js');
+    res.json({ data: getGraphConfig() });
+  }),
+);
+
+router.post(
+  '/graph/run',
+  authMiddleware,
+  graphOrchestratorInline,
+  asyncHandler(async (req, res) => {
+    const { runGraphToCompletion } = await import('../../services/orchestration/graphOrchestrator.js');
+    const result = await runGraphToCompletion({
+      input: req.body.input ?? req.body.message ?? req.body.task,
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      threadId: req.body.threadId,
+    });
+    res.status(201).json({ data: result });
+  }),
+);
+
+router.get(
+  '/graph/:runId',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { getGraphRun } = await import('../../services/orchestration/graphOrchestrator.js');
+    const state = getGraphRun(req.params.runId);
+    res.json({ data: { runId: state.runId, status: state.status, node: state.node, checkpoint: state.checkpoint, values: state.values } });
+  }),
+);
+
+router.post(
+  '/graph/:runId/resume',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { resumeGraph } = await import('../../services/orchestration/graphOrchestrator.js');
+    const result = await resumeGraph(req.params.runId, {
+      decision: req.body.decision ?? 'approve',
+      userResponse: req.body.userResponse,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.post(
+  '/reason/tot',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runTreeOfThoughts, getTotConfig } = await import(
+      '../../services/reasoning/treeOfThoughtsService.js'
+    );
+    const tot = await runTreeOfThoughts({
+      task: req.body.task ?? req.body.message,
+      context: req.body.context ?? {},
+      beamWidth: req.body.beamWidth,
+      depth: req.body.depth,
+    });
+    res.json({ data: { ...tot, config: getTotConfig() } });
+  }),
+);
+
+router.post(
+  '/memory/unified',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { retrieveUnifiedMemory, getUnifiedMemoryConfig } = await import(
+      '../../services/memory/unifiedMemoryService.js'
+    );
+    const result = await retrieveUnifiedMemory({
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      queryText: req.body.query ?? req.body.message,
+      threadId: req.body.threadId,
+      recentMessages: req.body.recentMessages ?? [],
+      episodicEvents: req.body.episodicEvents ?? [],
+      metadata: req.body.metadata ?? {},
+      ragOptions: req.body.ragOptions ?? {},
+    });
+    res.json({ data: { ...result, config: getUnifiedMemoryConfig() } });
+  }),
+);
+
+/** Phase 38 — Command Center, governance, audit, kill switch, zero-copy */
+router.get(
+  '/ops/command-center',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getCommandCenterSnapshot } = await import(
+      '../../services/ops/agentCommandCenterService.js'
+    );
+    res.json({ data: await getCommandCenterSnapshot() });
+  }),
+);
+
+router.get(
+  '/governance/policy',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getGovernancePolicy, NIST_AI_RMF } = await import(
+      '../../services/governance/governanceAsCode.js'
+    );
+    res.json({ data: { policy: getGovernancePolicy(), nist: NIST_AI_RMF } });
+  }),
+);
+
+router.post(
+  '/governance/evaluate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { evaluateGovernance, initializeAgentWithGovernance } = await import(
+      '../../services/governance/governanceAsCode.js'
+    );
+    const binding = initializeAgentWithGovernance({
+      agentRole: req.body.agentRole ?? 'transaction',
+      characterId: req.body.characterId,
+      userId: req.user.id,
+    });
+    const decision = evaluateGovernance({
+      action: req.body.action,
+      tags: req.body.tags ?? [],
+      amount: req.body.amount,
+      agentBinding: binding,
+    });
+    res.json({ data: { binding, decision } });
+  }),
+);
+
+router.get(
+  '/ops/audit',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { listAuditEvents, verifyAuditChain, getAuditTip } = await import(
+      '../../services/security/immutableAuditLedger.js'
+    );
+    const events = await listAuditEvents({
+      limit: parseInt(req.query.limit ?? '50', 10),
+      type: req.query.type ?? null,
+    });
+    res.json({
+      data: {
+        tip: getAuditTip(),
+        integrity: verifyAuditChain(events.slice().reverse()),
+        events,
+      },
+    });
+  }),
+);
+
+router.get(
+  '/ops/kill-switch',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getKillSwitchState } = await import('../../services/security/globalKillSwitchService.js');
+    res.json({ data: getKillSwitchState() });
+  }),
+);
+
+router.post(
+  '/ops/kill-switch',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { engageKillSwitch, releaseKillSwitch, getKillSwitchState } = await import(
+      '../../services/security/globalKillSwitchService.js'
+    );
+    if (req.body?.engage === false || req.body?.action === 'release') {
+      await releaseKillSwitch({ by: req.user.id, userId: req.user.id });
+    } else {
+      await engageKillSwitch({
+        by: req.user.id,
+        reason: req.body?.reason ?? 'dashboard_kill_switch',
+        userId: req.user.id,
+      });
+    }
+    res.json({ data: getKillSwitchState() });
+  }),
+);
+
+router.get(
+  '/context/zero-copy',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { queryLiveSignalsInPlace, getZeroCopyConfig } = await import(
+      '../../services/context/zeroCopyQueryService.js'
+    );
+    const live = await queryLiveSignalsInPlace({
+      userId: req.user.id,
+      characterId: req.query.characterId,
+      limit: parseInt(req.query.limit ?? '8', 10),
+    });
+    res.json({ data: { ...live, config: getZeroCopyConfig() } });
+  }),
+);
+
+/** Phase 39 — Puppeteer, hologram, duplex voice, DAG quorum */
+router.get(
+  '/puppeteer/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getPuppeteerConfig } = await import('../../services/orchestration/puppeteerOrchestrator.js');
+    res.json({ data: getPuppeteerConfig() });
+  }),
+);
+
+router.post(
+  '/puppeteer/assemble',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { assembleTopology, analyzePromptComplexity } = await import(
+      '../../services/orchestration/puppeteerOrchestrator.js'
+    );
+    const topology = assembleTopology({
+      prompt: req.body.prompt ?? req.body.message ?? req.body.task,
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      preferCost: req.body.preferCost,
+    });
+    res.status(201).json({
+      data: { topology, analysis: analyzePromptComplexity(req.body.prompt ?? req.body.message) },
+    });
+  }),
+);
+
+router.post(
+  '/puppeteer/run',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runPuppeteerSwarm, puppeteerOrchestratorMiddleware } = await import(
+      '../../services/orchestration/puppeteerOrchestrator.js'
+    );
+    await new Promise((resolve, reject) => {
+      puppeteerOrchestratorMiddleware()(req, res, (err) => (err ? reject(err) : resolve()));
+    });
+    const result = await runPuppeteerSwarm({
+      prompt: req.body.prompt ?? req.body.message ?? req.body.task,
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      preferCost: req.body.preferCost,
+      requireQuorum: req.body.requireQuorum,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.post(
+  '/puppeteer/:topologyId/reconfigure',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { reconfigureTopology } = await import('../../services/orchestration/puppeteerOrchestrator.js');
+    res.json({
+      data: reconfigureTopology(req.params.topologyId, {
+        addRoles: req.body.addRoles ?? [],
+        removeRoles: req.body.removeRoles ?? [],
+        reason: req.body.reason,
+      }),
+    });
+  }),
+);
+
+router.get(
+  '/hologram/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getHologramConfig } = await import('../../services/spatial/holographicSwarmService.js');
+    res.json({ data: getHologramConfig() });
+  }),
+);
+
+router.post(
+  '/voice/duplex/session',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { createDuplexVoiceSession, getCognitiveVoiceConfig } = await import(
+      '../../services/voice/cognitiveVoiceDuplexService.js'
+    );
+    const session = createDuplexVoiceSession({
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      bci: req.body.bci ?? {},
+      biometrics: req.body.biometrics ?? {},
+    });
+    res.status(201).json({ data: { session, config: getCognitiveVoiceConfig() } });
+  }),
+);
+
+router.post(
+  '/voice/duplex/:sessionId/chunk',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { pushDuplexAgentChunk } = await import('../../services/voice/cognitiveVoiceDuplexService.js');
+    res.json({
+      data: pushDuplexAgentChunk({
+        sessionId: req.params.sessionId,
+        textDelta: req.body.textDelta,
+        pcmBase64: req.body.pcmBase64,
+        isFinal: Boolean(req.body.isFinal),
+      }),
+    });
+  }),
+);
+
+router.post(
+  '/voice/duplex/:sessionId/prosody',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { updateDuplexProsody } = await import('../../services/voice/cognitiveVoiceDuplexService.js');
+    res.json({
+      data: updateDuplexProsody(req.params.sessionId, {
+        bci: req.body.bci ?? {},
+        biometrics: req.body.biometrics ?? {},
+      }),
+    });
+  }),
+);
+
+router.post(
+  '/voice/duplex/:sessionId/barge-in',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { handleUserBargeIn } = await import('../../services/voice/cognitiveVoiceDuplexService.js');
+    res.json({
+      data: handleUserBargeIn({
+        sessionId: req.params.sessionId,
+        energy: req.body.energy ?? 0.7,
+      }),
+    });
+  }),
+);
+
+router.get(
+  '/consensus/dag',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getDagQuorumConfig, listDagVertices, getDagTip } = await import(
+      '../../services/consensus/dagQuorumLedger.js'
+    );
+    res.json({
+      data: {
+        config: getDagQuorumConfig(),
+        tip: getDagTip(),
+        recent: listDagVertices({ limit: 20 }),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/consensus/dag/propose',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { proposeDagOperation } = await import('../../services/consensus/dagQuorumLedger.js');
+    const result = await proposeDagOperation({
+      operation: req.body.operation ?? 'high_stakes',
+      payload: req.body.payload ?? {},
+      proposerId: req.body.proposerId ?? 'status.puppeteer',
+      voterIds: req.body.voterIds ?? ['status.research', 'status.dialogue', 'status.tools'],
+      autoSignHonest: req.body.autoSignHonest !== false,
+    });
+    res.status(result.committed ? 201 : 202).json({ data: result });
+  }),
+);
+
+router.post(
+  '/consensus/dag/vote',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { castDagVote } = await import('../../services/consensus/dagQuorumLedger.js');
+    res.json({
+      data: castDagVote({
+        proposalId: req.body.proposalId,
+        agentId: req.body.agentId,
+        approve: req.body.approve !== false,
+      }),
+    });
+  }),
+);
+
 export default router;
+
+async function graphOrchestratorInline(req, _res, next) {
+  try {
+    const { graphOrchestratorMiddleware } = await import(
+      '../../services/orchestration/graphOrchestrator.js'
+    );
+    return graphOrchestratorMiddleware()(req, _res, next);
+  } catch (err) {
+    next(err);
+  }
+}

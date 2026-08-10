@@ -970,3 +970,139 @@ POST /api/v2/mcp/mrtr/resume   # { "requestStateId", "decision": "approve" }
 # MCP_SWARM_WORKER_URL=https://status-agent-swarm.<account>.workers.dev
 ```
 
+## Phase 35 — Temporal KG, Agent Micro-Economies, WebRTC & Planetary Mesh
+
+| Component | Path |
+|-----------|------|
+| Temporal KG | `backend/src/services/context/temporalKnowledgeGraph.js` |
+| Neo4j schema doc | `docs/TEMPORAL_KNOWLEDGE_GRAPH.md` |
+| HTTP 402 MCP payments | `backend/src/services/mcp/mcpPaymentService.js` |
+| Agent Economy UI | `dashboard/app/agent-economy/page.tsx` |
+| WebRTC avatar stream | `backend/src/services/webrtc/avatarStreamService.js` |
+| Flutter client | `mobile/lib/services/webrtc_avatar_stream_service.dart` |
+| Planetary failover | `scripts/deploy_planetary_mesh.sh` |
+| Migration | `backend/db/migrations/024_phase35_temporal_economy.sql` |
+
+```bash
+# Temporal RAG (Neo4j when NEO4J_URI set; else Postgres)
+GET /api/v2/context/temporal?characterId=…
+
+# Agent micro-economy ledger (admin)
+GET /api/v2/ops/economy
+
+# WebRTC multi-modal session
+POST /api/v2/webrtc/session
+# Socket.IO: join_webrtc, webrtc_signal, webrtc_multimodal
+
+# Ubuntu planetary mesh failover
+sudo ./scripts/deploy_planetary_mesh.sh --watch
+# DRY_RUN=1 PRIMARY_URL=… FAILOVER_URLS=… LATENCY_BUDGET_MS=800
+```
+
+## Phase 36 — ZK Governance, CRDT Metaverse, Bio-Adaptive & Consensus Mesh
+
+| Component | Path |
+|-----------|------|
+| zk-SNARK governance | `backend/src/services/governance/zkAgentGovernanceService.js` |
+| CRDT spatial manager | `mobile/lib/services/crdt_spatial_state_manager.dart` |
+| Bio-adaptive controls | `backend/src/services/cognitive/bioAdaptiveService.js` |
+| Flutter UI filters | `mobile/lib/services/bio_adaptive_ui_service.dart` |
+| Raft consensus | `backend/src/services/consensus/raftConsensusMesh.js` |
+| Ubuntu orchestrator | `scripts/deploy_consensus_mesh.sh` |
+| Migration | `backend/db/migrations/025_phase36_zk_consensus.sql` |
+
+```bash
+# Prove compliance without revealing memory banks
+POST /api/v2/governance/zk/prove
+POST /api/v2/governance/zk/verify
+# Header on privileged routes: X-ZK-Agent-Proof
+
+# Bio-adaptive LLM/UI modulation
+POST /api/v2/cognitive/modulate
+
+# CRDT cross-world sync
+POST /api/v2/metaverse/crdt/merge
+
+# Planetary Raft quorum
+sudo ./scripts/deploy_consensus_mesh.sh --provision
+./scripts/deploy_consensus_mesh.sh --scale --traffic 'us-east:40,eu-west:35,ap-south:25'
+```
+
+## Phase 37 — A2A, Graph Orchestration, Tree-of-Thoughts & Unified Memory
+
+| Component | Path |
+|-----------|------|
+| A2A + ACP | `backend/src/services/a2a/a2aProtocol.js` |
+| Graph orchestrator | `backend/src/services/orchestration/graphOrchestrator.js` |
+| Tree-of-Thoughts | `backend/src/services/reasoning/treeOfThoughtsService.js` |
+| Unified memory RAG | `backend/src/services/memory/unifiedMemoryService.js` |
+| Migration | `backend/db/migrations/026_phase37_a2a_graph.sql` |
+
+```bash
+# Discover / delegate without glue code
+GET  /api/v2/a2a/cards
+POST /api/v2/a2a/delegate
+
+# LangGraph-style run with checkpoints + HITL
+POST /api/v2/graph/run
+POST /api/v2/graph/:runId/resume
+
+# Parallel Tree-of-Thoughts
+POST /api/v2/reason/tot
+
+# Unified STM + episodic + temporal KG + vector re-rank
+POST /api/v2/memory/unified
+```
+
+## Phase 38 — Agentic Command Center, Governance-as-Code & Kill Switch
+
+| Component | Path |
+|-----------|------|
+| Command Center UI | `dashboard/app/command-center/page.tsx` |
+| Telemetry aggregate | `backend/src/services/ops/agentCommandCenterService.js` |
+| Governance-as-Code | `backend/src/services/governance/governanceAsCode.js` |
+| Immutable audit | `backend/src/services/security/immutableAuditLedger.js` |
+| Global kill switch | `backend/src/services/security/globalKillSwitchService.js` |
+| Zero-copy queries | `backend/src/services/context/zeroCopyQueryService.js` |
+| Migration | `backend/db/migrations/027_phase38_audit_ledger.sql` |
+
+```bash
+# Admin control plane
+GET  /api/v2/ops/command-center
+POST /api/v2/ops/kill-switch   # { "engage": true, "reason": "…" }
+GET  /api/v2/ops/audit
+
+# NIST AI RMF governance
+GET  /api/v2/governance/policy
+POST /api/v2/governance/evaluate
+
+# Zero-copy live signals
+GET  /api/v2/context/zero-copy?characterId=…
+```
+
+## Phase 39 — Holographic Swarm, Puppeteer, Cognitive Voice & DAG Quorum
+
+| Component | Path |
+|-----------|------|
+| OpenXR hologram (Flutter) | `mobile/lib/services/holographic_swarm_embodiment_service.dart` |
+| Puppeteer orchestrator | `backend/src/services/orchestration/puppeteerOrchestrator.js` |
+| Hologram events | `backend/src/services/spatial/holographicSwarmService.js` |
+| Cognitive duplex voice | `backend/src/services/voice/cognitiveVoiceDuplexService.js` |
+| Flutter voice client | `mobile/lib/services/cognitive_voice_duplex_service.dart` |
+| DAG quorum ledger | `backend/src/services/consensus/dagQuorumLedger.js` |
+
+```bash
+# Dynamic swarm topologies
+POST /api/v2/puppeteer/assemble
+POST /api/v2/puppeteer/run
+
+# OpenXR hologram config + Socket.IO swarm_hologram_event
+GET  /api/v2/hologram/config
+
+# Full-duplex cognitive voice
+POST /api/v2/voice/duplex/session
+
+# DAG quorum (2/3 signatures)
+POST /api/v2/consensus/dag/propose
+```
+

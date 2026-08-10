@@ -9,6 +9,17 @@ import {
 } from '../ai/prompts.js';
 import { enrichDmContextWithVectorMemories } from '../vectorMemoryService.js';
 import { logger } from '../../utils/logger.js';
+import {
+  queryTemporalContext,
+  formatTemporalPromptBlock,
+  upsertTemporalRelation,
+} from './temporalKnowledgeGraph.js';
+import { applyBioAdaptiveToContext } from '../cognitive/bioAdaptiveService.js';
+import { retrieveUnifiedMemory } from '../memory/unifiedMemoryService.js';
+import {
+  queryLiveSignalsInPlace,
+  formatZeroCopyPromptBlock,
+} from './zeroCopyQueryService.js';
 
 const BASE_MIN_SCORE = parseFloat(process.env.MEMORY_MIN_SCORE ?? '0.72');
 const BASE_TOP_K = parseInt(process.env.MEMORY_TOP_K ?? '5', 10);
@@ -112,6 +123,7 @@ export class ContextEngine {
     globalNarrative,
     affectiveContext = null,
     bciIntent = null,
+    biometrics = null,
     req = null,
   }) {
     const rag = computeDynamicRagWeights({
@@ -120,7 +132,7 @@ export class ContextEngine {
       mode: 'dm',
     });
 
-    const base = {
+    let base = {
       character,
       relationship,
       recentMessages,
@@ -132,6 +144,14 @@ export class ContextEngine {
       ragWeights: rag,
     };
 
+    // Phase 36 — bio-adaptive temperature / empathy / UI hints
+    if (bciIntent || biometrics || affectiveContext) {
+      base = applyBioAdaptiveToContext(base, {
+        bci: bciIntent ?? {},
+        biometrics: biometrics ?? {},
+      });
+    }
+
     const enriched = await enrichDmContextWithVectorMemories({
       userId: user.id,
       characterId: character.id,
@@ -141,8 +161,77 @@ export class ContextEngine {
       ragOptions: rag,
     });
 
+    // Phase 35 — temporal KG: chronology + relational depth
+    try {
+      const affinity = relationship?.affinity ?? relationship?.score ?? 0;
+      const depth = Math.max(1, Math.min(10, Math.floor(Number(affinity) / 10) + 1));
+      await upsertTemporalRelation({
+        userId: user.id,
+        characterId: character.id,
+        affinity,
+        depth,
+      });
+      const temporal = await queryTemporalContext({
+        userId: user.id,
+        characterId: character.id,
+        limit: Math.min(rag.topK + 2, 10),
+      });
+      enriched.temporalKnowledge = temporal;
+      enriched.temporalPromptBlock = formatTemporalPromptBlock(temporal);
+      if (temporal.relation?.depth != null && relationship) {
+        enriched.relationship = {
+          ...relationship,
+          temporalDepth: temporal.relation.depth,
+        };
+      }
+    } catch (err) {
+      logger.warn(`[ContextEngine] temporal KG skipped: ${err.message}`);
+    }
+
+    // Phase 37 — unified memory (STM + episodic + temporal + vector re-rank)
+    try {
+      const unified = await retrieveUnifiedMemory({
+        userId: user.id,
+        characterId: character.id,
+        queryText: userMessageContent,
+        threadId,
+        recentMessages,
+        episodicEvents: globalNarrative ? [globalNarrative] : [],
+        ragOptions: rag,
+      });
+      enriched.unifiedMemory = unified;
+      if (unified.promptBlock) {
+        enriched.unifiedMemoryPromptBlock = unified.promptBlock;
+        // Prefer re-ranked vector slice when available
+        if (unified.items?.length) {
+          enriched.vectorMemories = unified.items.filter((i) => i.source === 'vector' || i.embedding != null);
+          if (!enriched.vectorMemories.length) {
+            enriched.vectorMemories = unified.items.slice(0, rag.topK);
+          }
+        }
+        if (!enriched.temporalPromptBlock && unified.temporal) {
+          enriched.temporalPromptBlock = formatTemporalPromptBlock(unified.temporal);
+        }
+      }
+    } catch (err) {
+      logger.warn(`[ContextEngine] unified memory skipped: ${err.message}`);
+    }
+
+    // Phase 38 — zero-copy in-place enterprise signals (no vector duplication)
+    try {
+      const live = await queryLiveSignalsInPlace({
+        userId: user.id,
+        characterId: character.id,
+        limit: Math.min(rag.topK + 2, 10),
+      });
+      enriched.zeroCopy = live;
+      enriched.zeroCopyPromptBlock = formatZeroCopyPromptBlock(live);
+    } catch (err) {
+      logger.warn(`[ContextEngine] zero-copy skipped: ${err.message}`);
+    }
+
     logger.info(
-      `[ContextEngine] rag minScore=${rag.minScore.toFixed(2)} topK=${rag.topK} reasons=${rag.reasons.join(',') || 'default'}`,
+      `[ContextEngine] rag minScore=${rag.minScore.toFixed(2)} topK=${rag.topK} reasons=${rag.reasons.join(',') || 'default'} temporal=${enriched.temporalKnowledge?.backend ?? 'n/a'}`,
     );
 
     return enriched;

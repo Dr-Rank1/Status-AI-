@@ -100,6 +100,24 @@ export function initSocket(httpServer) {
       socket.leave(`v2:gql:${channel}`);
     });
 
+    // Phase 35 — WebRTC multi-modal avatar signaling
+    import('../webrtc/avatarStreamService.js')
+      .then(({ registerWebrtcSocketHandlers }) => registerWebrtcSocketHandlers(socket))
+      .catch(() => {});
+
+    // Phase 36 — Raft consensus mesh
+    import('../consensus/raftConsensusMesh.js')
+      .then(({ registerConsensusSocketHandlers }) => registerConsensusSocketHandlers(socket))
+      .catch(() => {});
+
+    // Phase 39 — holographic swarm + cognitive duplex voice
+    import('../spatial/holographicSwarmService.js')
+      .then(({ registerHologramSocketHandlers }) => registerHologramSocketHandlers(socket))
+      .catch(() => {});
+    import('../voice/cognitiveVoiceDuplexService.js')
+      .then(({ registerDuplexVoiceSocketHandlers }) => registerDuplexVoiceSocketHandlers(socket))
+      .catch(() => {});
+
     socket.emit('connected', { userId: socket.user.id });
 
     socket.on('disconnect', () => {
