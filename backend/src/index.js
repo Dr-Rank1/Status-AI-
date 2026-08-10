@@ -25,6 +25,11 @@ import { logRegionStartup } from './config/region.js';
 import { payloadShapeGuard, captureErrorForHealing } from './middleware/selfHealing.js';
 import { selfHealingFallbackMiddleware } from './services/selfHealing/selfHealingRegistry.js';
 import { startSelfHealingDaemon } from './workers/selfHealingDaemon.js';
+import {
+  tenantResolverMiddleware,
+  tenantScopeMiddleware,
+  validateUserTenantMiddleware,
+} from './middleware/tenant.js';
 
 dotenv.config();
 
@@ -37,7 +42,14 @@ const PORT = process.env.PORT ?? 3000;
 app.set('trust proxy', 1);
 app.use(securityHeaders());
 app.use(corsMiddleware());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    if (req.url?.includes('/webhooks/revenuecat')) {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(sanitizeBody);
 app.use(payloadShapeGuard);
 app.use(metricsMiddleware);
@@ -59,6 +71,9 @@ app.get('/', (_req, res) => {
 app.get('/metrics', metricsHandler);
 
 mountDeveloperPortal(app);
+
+app.use(tenantResolverMiddleware);
+app.use(tenantScopeMiddleware);
 
 app.use('/api/v1/public', publicRouter);
 app.use(selfHealingFallbackMiddleware);

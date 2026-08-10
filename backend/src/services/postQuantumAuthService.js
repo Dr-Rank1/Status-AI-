@@ -16,7 +16,7 @@ const PQ_ALGORITHM = process.env.PQ_AUTH_ALGORITHM ?? 'ml-dsa-65-hybrid-v1';
 export { PQ_ENABLED, PQ_ALGORITHM };
 
 export function signHybridToken(user) {
-  const payload = { userId: user.id, username: user.username, pq: true };
+  const payload = { userId: user.id, username: user.username, tenantId: user.tenant_id, pq: true };
   const token = jwt.sign(payload, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
     algorithm: 'HS256',

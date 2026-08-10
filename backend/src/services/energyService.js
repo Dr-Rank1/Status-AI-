@@ -50,6 +50,12 @@ export async function spendEnergy(userId, action, client = null) {
 
   await ensureDailyReset(client, userId);
 
+  const { isProUser } = await import('./subscriptionService.js');
+  if (await isProUser(userId)) {
+    const state = await getEnergyState(userId, client);
+    return { state, spent: 0, action, proBypass: true };
+  }
+
   const { rows } = await exec(
     client,
     `UPDATE energy_state

@@ -62,5 +62,7 @@ export async function getSessionPayload(userId) {
   if (rows.length === 0) return null;
 
   const energy = await getEnergyState(userId);
-  return { user: rows[0], energy };
+  const { getUserEntitlements } = await import('./subscriptionService.js');
+  const subscription = await getUserEntitlements(userId);
+  return { user: rows[0], energy, subscription };
 }

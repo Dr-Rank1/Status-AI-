@@ -1,11 +1,14 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
+import { AsyncLocalStorage } from 'async_hooks';
 import { getReadRegion } from './geoRouting.js';
 import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
 const { Pool } = pg;
+
+export const tenantContext = new AsyncLocalStorage();
 
 const writePool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -57,7 +60,6 @@ if (process.env.DATABASE_READ_URL) {
 
 function pickReadPool(req) {
   if (readPools.length === 0) return writePool;
-
   const targetRegion = getReadRegion(req);
   const match = readPools.find((r) => r.region === targetRegion);
   return match?.pool ?? readPools[0].pool;
@@ -73,13 +75,49 @@ for (const { pool, region } of readPools) {
   });
 }
 
+async function runWithTenantSession(pool, tenantId, bypassRls, fn) {
+  if (!tenantId && !bypassRls) {
+    return fn(pool);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (bypassRls) {
+      await client.query(`SELECT set_config('app.bypass_rls', 'true', true)`);
+    } else if (tenantId) {
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+    }
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function query(text, params, options = {}) {
   const pool = options.read ? pickReadPool(options.req) : writePool;
-  return pool.query(text, params);
+  const store = tenantContext.getStore();
+  const tenantId = options.tenantId ?? store?.tenantId ?? null;
+  const bypassRls = options.bypassRls ?? store?.bypassRls ?? false;
+
+  if (!tenantId && !bypassRls) {
+    return pool.query(text, params);
+  }
+
+  return runWithTenantSession(pool, tenantId, bypassRls, (client) => client.query(text, params));
 }
 
 export async function queryRead(text, params, req = null) {
   return query(text, params, { read: true, req });
+}
+
+export async function withBypassRls(fn) {
+  return tenantContext.run({ bypassRls: true }, fn);
 }
 
 export async function checkConnection() {

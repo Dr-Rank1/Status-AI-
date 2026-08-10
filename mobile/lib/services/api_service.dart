@@ -39,13 +39,15 @@ class ApiService {
     OfflineActionQueueService? queue,
     E2eeService? e2ee,
     FederatedLearningService? federated,
+    String? tenantSlug,
   })  : _client = client ?? http.Client(),
         _authStorage = authStorage ?? AuthStorage(),
         _localAi = localAi ?? LocalAiService(),
         _connectivity = connectivity ?? Connectivity(),
         _queue = queue ?? OfflineActionQueueService.instance,
         _e2ee = e2ee ?? E2eeService(),
-        _federated = federated ?? FederatedLearningService();
+        _federated = federated ?? FederatedLearningService(),
+        _tenantSlug = tenantSlug ?? dotenv.maybeGet('TENANT_SLUG') ?? 'default';
 
   final http.Client _client;
   final AuthStorage _authStorage;
@@ -54,6 +56,7 @@ class ApiService {
   final OfflineActionQueueService _queue;
   final E2eeService _e2ee;
   final FederatedLearningService _federated;
+  final String _tenantSlug;
   String? _token;
   EnergyState? _lastEnergy;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -110,6 +113,7 @@ class ApiService {
     return {
       if (json) 'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-Tenant-Slug': _tenantSlug,
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
@@ -231,6 +235,32 @@ class ApiService {
     _throwIfError(response, 'Purchase failed');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     return RefillResult.fromJson(body);
+  }
+
+  Future<SubscriptionState> fetchEntitlements() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/subscription/entitlements');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load entitlements');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return SubscriptionState.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<SubscriptionState> syncSubscription({
+    String? appUserId,
+    List<String> activeEntitlements = const [],
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/subscription/sync');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (appUserId != null) 'appUserId': appUserId,
+        'activeEntitlements': activeEntitlements,
+      }),
+    );
+    _throwIfError(response, 'Subscription sync failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return SubscriptionState.fromJson(body['data'] as Map<String, dynamic>);
   }
 
   Future<List<Post>> fetchPosts({int limit = 20, String? fandom}) async {
@@ -667,7 +697,7 @@ class ApiService {
       createdAt: now,
     );
 
-    final replyText = await _localAi.generateDmReply(
+    final replyText = await _localAi.generateWithEdgeFallback(
           characterName: characterName,
           characterBio: characterBio,
           userMessage: content,

@@ -26,6 +26,10 @@ import {
   meshSignalSchema,
   meshGossipSchema,
   metaverseSyncSchema,
+  tenantThemeSchema,
+  tenantAiConfigSchema,
+  tenantProvisionSchema,
+  subscriptionSyncSchema,
 } from '../validation/schemas.js';
 import { uploadImage as multerUpload, uploadAudio as multerAudio } from '../config/upload.js';
 import * as auth from '../controllers/authController.js';
@@ -56,6 +60,8 @@ import * as bci from '../controllers/bciController.js';
 import * as affective from '../controllers/affectiveController.js';
 import * as mesh from '../controllers/meshController.js';
 import * as metaverse from '../controllers/metaverseController.js';
+import * as tenantAdmin from '../controllers/tenantAdminController.js';
+import * as subscription from '../controllers/subscriptionController.js';
 import wearableRouter from './wearable.js';
 import { spatialPrivacyMiddleware } from '../middleware/spatialPrivacy.js';
 import { bciPrivacyMiddleware } from '../middleware/bciPrivacy.js';
@@ -85,10 +91,16 @@ router.get('/posts/:id/replies', asyncHandler(posts.getPostReplies));
 
 router.get('/store/products', asyncHandler(energy.listStoreProducts));
 
+router.get('/tenant/theme', asyncHandler(tenantAdmin.getPublicTheme));
+router.get('/tenant/config', asyncHandler(tenantAdmin.getTenantConfig));
+
+router.post('/webhooks/revenuecat', asyncHandler(subscription.handleWebhook));
+
 router.post('/zkp/verify', validateBody(zkpVerifySchema), asyncHandler(zkp.verifyProof));
 
 // Protected routes (JWT)
 router.use(authMiddleware);
+router.use(validateUserTenantMiddleware);
 
 router.get('/auth/me', asyncHandler(auth.me));
 router.get('/session', asyncHandler(auth.me));
@@ -126,6 +138,9 @@ router.post('/messages/groups/send', aiRateLimiter, asyncHandler(groups.sendGrou
 
 router.get('/energy', asyncHandler(energy.getMyEnergyState));
 router.post('/energy/refill', paymentRateLimiter, validateBody(refillEnergySchema), asyncHandler(energy.refillEnergy));
+
+router.get('/subscription/entitlements', asyncHandler(subscription.getMyEntitlements));
+router.post('/subscription/sync', validateBody(subscriptionSyncSchema), asyncHandler(subscription.syncFromClient));
 
 router.post('/analytics/events', asyncHandler(analytics.ingestClientEvents));
 
@@ -189,6 +204,15 @@ router.get('/mesh/status', asyncHandler(mesh.status));
 router.post('/metaverse/sync', validateBody(metaverseSyncSchema), asyncHandler(metaverse.createSync));
 router.get('/metaverse/sync/:token', asyncHandler(metaverse.getSync));
 router.get('/metaverse/export/:characterId', asyncHandler(metaverse.exportCharacter));
+
+router.patch('/tenant/theme', adminMiddleware, validateBody(tenantThemeSchema), asyncHandler(tenantAdmin.updateTheme));
+router.patch('/tenant/ai-config', adminMiddleware, validateBody(tenantAiConfigSchema), asyncHandler(tenantAdmin.updateAiConfig));
+router.get('/tenant/admin/users', adminMiddleware, asyncHandler(tenantAdmin.listUsersForModeration));
+router.post('/tenant/admin/users/:userId/moderate', adminMiddleware, asyncHandler(tenantAdmin.moderateUser));
+router.get('/tenant/admin/characters', adminMiddleware, asyncHandler(tenantAdmin.listCharactersForTuning));
+router.patch('/tenant/admin/characters/:characterId/prompt', adminMiddleware, asyncHandler(tenantAdmin.tuneCharacterPrompt));
+router.post('/tenant/provision', adminMiddleware, validateBody(tenantProvisionSchema), asyncHandler(tenantAdmin.createTenant));
+router.get('/tenant/list', adminMiddleware, asyncHandler(tenantAdmin.listAllTenants));
 
 router.get('/admin/self-healing/status', adminMiddleware, asyncHandler(selfHealing.status));
 router.get('/admin/self-healing/errors', adminMiddleware, asyncHandler(selfHealing.recentErrors));
