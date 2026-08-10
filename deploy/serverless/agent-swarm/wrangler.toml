@@ -1,0 +1,17 @@
+# Phase 34 — Cloudflare Workers agent swarm (stateless MCP 2026-07-28)
+name = "status-agent-swarm"
+main = "src/worker.js"
+compatibility_date = "2026-07-28"
+workers_dev = true
+
+[vars]
+MCP_PROTOCOL_VERSION = "2026-07-28"
+# Upstream API when worker proxies to origin gateway:
+# STATUS_MCP_ORIGIN = "https://api.example.com/api/v2/mcp"
+
+# Optional Durable Object-free design: pure fetch + Redis/Postgres via origin.
+# Scale to zero is automatic for Workers when idle.
+
+[[routes]]
+pattern = "swarm.example.com/mcp*"
+zone_name = "example.com"

@@ -806,3 +806,167 @@ chmod +x scripts/dead_code_audit.sh scripts/lock_main_branch.sh
 ./scripts/lock_main_branch.sh
 ```
 
+## Phase 28 — Universal Audit, Runbooks & Master Handoff
+
+### Security audit
+
+```bash
+chmod +x scripts/universal_security_audit.sh scripts/rotate_keys.sh
+./scripts/universal_security_audit.sh
+```
+
+Report: `docs/SECURITY_AUDIT_REPORT.md`. Backend `@sentry/node` upgraded to v10 (0 npm advisories). Dashboard pinned to Next.js `16.3+`.
+
+### Operations & API docs
+
+| Doc | Path |
+|-----|------|
+| Operations runbook | `OPERATIONS_RUNBOOK.md` |
+| API reference | `API_REFERENCE.md` |
+| Handoff sign-off | `HANDOFF_SIGN_OFF.md` |
+
+### Production lockdown
+
+| Artifact | Path |
+|----------|------|
+| Key rotation | `scripts/rotate_keys.sh` |
+| Branch protection (declarative) | `.github/settings.yml` (2 approvals) |
+| Apply protection | `scripts/lock_main_branch.sh` |
+| Golden Master CI | `.github/workflows/golden-master-release.yml` |
+
+```bash
+./scripts/rotate_keys.sh --dry-run
+./scripts/lock_main_branch.sh owner/Status-AI-
+gh workflow run golden-master-release.yml -f version=1.0.0
+```
+
+Release version: **v1.0.0** across backend, Flutter (`1.0.0+1`), and dashboard.
+
+## Phase 29 — Post-Handoff Maintenance & Continuous Operations
+
+Development lifecycle is **closed**. Ongoing work is bug triage, performance/security checks, and incremental enhancements via the admin portal or PostHog flags.
+
+| Guide | Path |
+|-------|------|
+| Ops runbook (consult first) | `OPERATIONS_RUNBOOK.md` |
+| API map | `API_REFERENCE.md` |
+| Agent rule | `.cursor/rules/phase29-maintenance.mdc` |
+
+Ready for on-call fixes, dependency audits, and scoped feature expansions without reopening the 28-phase roadmap.
+
+## Phase 30 — SLA Telemetry, Cost Optimization & V2 Scaffolding
+
+Additive ops framework (V1 clients unchanged):
+
+| Component | Path |
+|-----------|------|
+| SLA middleware | `backend/src/middleware/slaMiddleware.js` |
+| SLA telemetry | `backend/src/observability/slaTelemetry.js` |
+| Cost optimizer | `backend/src/services/aiCostOptimizer.js` |
+| Feedback curation | `backend/src/workers/fineTuneCurationWorker.js` |
+| Health CLI | `npm run health:check` → `backend/scripts/health-check.js` |
+| API v2 router | `backend/src/routes/v2/index.js` (`/api/v2`) |
+| V2 blueprint | `docs/V2_ARCHITECTURE.md` |
+
+```bash
+cd backend
+npm run health:check
+# Configure Slack/PagerDuty for SLA breaches:
+# SLACK_ALERT_WEBHOOK_URL=...  PAGERDUTY_ROUTING_KEY=...
+```
+
+SLA targets (defaults): **99.9%** uptime, p95 ≤ **800ms**, error rate ≤ **1%**, hallucination rate ≤ **5%**.
+
+## Phase 31 — AGI Reflection, Knowledge Mesh & V2 Beta
+
+| Component | Path |
+|-----------|------|
+| Reflection loop | `backend/src/services/agi/reflectionLoopService.js` |
+| Knowledge mesh | `backend/src/services/knowledgeMesh/knowledgeMeshService.js` |
+| Wasm sandbox | `backend/src/services/wasm/wasmToolSandbox.js` |
+| V2 Beta API | `backend/src/routes/v2/index.js` (`/api/v2`, GraphQL) |
+| Flutter toggle | Profile → **V2 Beta** (`v2_beta_service.dart`) |
+| Migration | `backend/db/migrations/021_phase31_knowledge_mesh.sql` |
+
+```bash
+# Backend
+AGI_REFLECTION_ENABLED=true
+KNOWLEDGE_MESH_ENABLED=true
+# optional: NEO4J_URI=bolt://localhost:7687
+npm test   # includes phase31
+
+# Flutter — Profile screen switch, or:
+# V2_BETA_ENABLED=true
+```
+
+V2 Beta endpoints: `POST /api/v2/ai/reflect`, `POST /api/v2/graphql`, `GET/POST /api/v2/mesh/insights`, Socket.IO `v2_graphql_subscribe`.
+
+## Phase 32 — V2 GA, Neuromorphic, Sovereign Cloud & QKD
+
+| Component | Path |
+|-----------|------|
+| Neuromorphic C API | `mobile/native/neuromorphic/include/status_neuromorphic.h` |
+| SNN stub engine | `mobile/native/neuromorphic/src/status_neuromorphic.cpp` |
+| Dart bridge | `mobile/lib/services/neuromorphic_bridge_service.dart` |
+| Blue/green switcher | `backend/src/services/traffic/blueGreenTrafficService.js` |
+| Sovereign residency | `backend/src/services/sovereign/sovereignCloudService.js` |
+| AIPS | `backend/src/services/security/aipsService.js` |
+| QKD channels | `backend/src/services/security/qkdService.js` |
+
+```bash
+# Gradual V2 GA (admin JWT)
+V2_GA_ENABLED=true
+# POST /api/v2/ops/traffic  { "v2Percent": 5 }
+# Shadow mismatches > 0.01% → automatic rollback to 0%
+
+# Neuromorphic
+cd mobile/native/neuromorphic && cmake -B build && cmake --build build
+# NEUROMORPHIC_ENABLED=true
+```
+
+## Phase 33 — Context Engineering, MCP Identity & Agent Escrow
+
+| Component | Path |
+|-----------|------|
+| ContextEngine | `backend/src/services/context/ContextEngine.js` |
+| MCP RBAC | `backend/src/services/mcp/agentIdentityService.js` |
+| Edge vectors | `backend/src/services/edge/edgeVectorStore.js` |
+| Agent escrow | `backend/src/services/agents/agentEscrowService.js` |
+| Migration | `backend/db/migrations/022_phase33_agent_escrow.sql` |
+
+```bash
+# Dynamic RAG uses Phase 24 affective/BCI signals automatically in DM assembly
+POST /api/v2/context/assemble
+POST /api/v2/mcp/token          # { "role": "research" | "transaction" | ... }
+POST /api/v2/agents/:id/escrow
+POST /api/v2/agents/:id/hire-compute
+```
+
+## Phase 34 — Stateless MCP, Serverless Swarms & MRTR
+
+| Component | Path |
+|-----------|------|
+| Stateless MCP router | `backend/src/services/mcp/statelessMcpRouter.js` |
+| Tool discovery cache | `backend/src/services/mcp/toolDiscoveryCache.js` |
+| MRTR HITL state | `backend/src/services/mcp/mrtrStateService.js` |
+| Swarm dispatcher | `backend/src/services/mcp/serverlessSwarmDispatcher.js` |
+| CF Workers / Cloud Run | `deploy/serverless/agent-swarm/` |
+| Migration | `backend/db/migrations/023_phase34_mcp_mrtr.sql` |
+
+```bash
+# Protocol 2026-07-28 — header-routed, no sticky sessions
+curl -X POST "$API/api/v2/mcp" \
+  -H "Authorization: Bearer $JWT" \
+  -H "Mcp-Method: tools/list" \
+  -H "Mcp-Cache-Scope: tenant" \
+  -H "Mcp-Protocol-Version: 2026-07-28"
+
+# Human-in-the-loop before escrow
+POST /api/v2/mcp/mrtr/pause
+POST /api/v2/mcp/mrtr/resume   # { "requestStateId", "decision": "approve" }
+
+# Serverless swarm (scale-to-zero)
+# MCP_SWARM_BACKEND=cloudflare|cloudrun|local
+# MCP_SWARM_WORKER_URL=https://status-agent-swarm.<account>.workers.dev
+```
+

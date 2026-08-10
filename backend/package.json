@@ -1,6 +1,6 @@
 {
   "name": "status-backend",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "REST API for Status social simulation app",
   "main": "src/index.js",
   "type": "module",
@@ -8,13 +8,14 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "node --test test/**/*.test.js",
-    "audit:security": "npm audit --audit-level=high"
+    "audit:security": "npm audit --audit-level=high",
+    "health:check": "node scripts/health-check.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@sentry/node": "^9.47.1",
+    "@sentry/node": "^10.70.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

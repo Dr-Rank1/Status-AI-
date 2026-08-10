@@ -16,6 +16,7 @@ import '../../widgets/character_3d_viewer.dart';
 import '../../widgets/gated_character_3d_viewer.dart';
 import '../feedback/feedback_screen.dart';
 import '../wearable/wearable_hud_screen.dart';
+import '../../services/v2_beta_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -323,6 +324,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                         label: const Text('Send feedback'),
                       ),
                     ),
+                    _V2BetaToggleCard(api: widget.api),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       child: Text(
@@ -403,6 +405,76 @@ class _MiniStat extends StatelessWidget {
         ),
         Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.textMuted)),
       ],
+    );
+  }
+}
+
+class _V2BetaToggleCard extends StatefulWidget {
+  const _V2BetaToggleCard({required this.api});
+
+  final ApiService api;
+
+  @override
+  State<_V2BetaToggleCard> createState() => _V2BetaToggleCardState();
+}
+
+class _V2BetaToggleCardState extends State<_V2BetaToggleCard> {
+  bool _enabled = false;
+  bool _busy = false;
+  String? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabled = V2BetaService.instance.isEnabled;
+  }
+
+  Future<void> _toggle(bool value) async {
+    setState(() {
+      _busy = true;
+      _status = null;
+    });
+    await V2BetaService.instance.setEnabled(value);
+    String? status;
+    if (value) {
+      try {
+        final caps = await widget.api.fetchV2Version();
+        status = 'V2 ${caps['version'] ?? 'beta'} · ${caps['status'] ?? 'ok'}';
+      } catch (_) {
+        status = 'Enabled — server probe failed (will retry)';
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _enabled = value;
+      _busy = false;
+      _status = status;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(12),
+          color: AppColors.surface,
+        ),
+        child: SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('V2 Beta'),
+          subtitle: Text(
+            _status ??
+                'Opt into experimental API, GraphQL subscriptions, and AGI reflection.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+          value: _enabled,
+          onChanged: _busy ? null : _toggle,
+        ),
+      ),
     );
   }
 }

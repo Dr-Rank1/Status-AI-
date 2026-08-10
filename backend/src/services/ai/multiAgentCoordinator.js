@@ -5,7 +5,9 @@
 import { runResearchSubagent } from './subagents/researchAgent.js';
 import { runDialogueSubagent } from './subagents/dialogueAgent.js';
 import { executeAgentTool } from './agentTools.js';
+import { withAgentIdentity, assertAgentScope } from '../mcp/agentIdentityService.js';
 import { logger } from '../../utils/logger.js';
+import { hireMicroInferenceNode } from '../agents/agentEscrowService.js';
 
 const COORDINATOR_MODES = new Set(['dm', 'group_dm', 'post_reply']);
 
@@ -26,6 +28,10 @@ export function planSubagents({ incomingMessage, mode }) {
     agents.push('tools');
   }
 
+  if (/pay|tip|escrow|hire|compute|wallet/.test(text)) {
+    agents.push('transaction');
+  }
+
   if (mode === 'post_reply') {
     if (!agents.includes('research')) agents.unshift('research');
   }
@@ -33,7 +39,9 @@ export function planSubagents({ incomingMessage, mode }) {
   return [...new Set(agents)];
 }
 
-async function runToolsSubagent({ character, user, incomingMessage, context }) {
+async function runToolsSubagent({ character, user, incomingMessage, context, mcpIdentity }) {
+  if (mcpIdentity) assertAgentScope(mcpIdentity, 'calendar:write');
+
   const text = (incomingMessage ?? '').toLowerCase();
   const toolResults = [];
   const toolCtx = { userId: user?.id, characterId: character?.id, threadId: context?.threadId };
@@ -54,7 +62,18 @@ async function runToolsSubagent({ character, user, incomingMessage, context }) {
     toolResults.push({ tool: 'create_calendar_event', output });
   }
 
-  return { role: 'tools', toolResults };
+  return { role: 'tools', toolResults, mcpRole: mcpIdentity?.role };
+}
+
+async function runTransactionSubagent({ character, context, mcpIdentity }) {
+  if (mcpIdentity) assertAgentScope(mcpIdentity, 'compute:hire');
+  const queueDepth = context?.queueDepth ?? parseInt(process.env.AGENT_LOCAL_QUEUE_DEPTH ?? '0', 10);
+  const hire = await hireMicroInferenceNode({
+    characterId: character.id,
+    queueDepth,
+    mcpIdentity,
+  });
+  return { role: 'transaction', hire, mcpRole: mcpIdentity?.role };
 }
 
 /**
@@ -65,24 +84,31 @@ export async function runMultiAgentCoordinator(args) {
   logger.info(`[MultiAgent] plan=${plan.join('+')} mode=${args.mode} character=${args.character?.handle}`);
 
   const parallelAgents = plan.filter((a) => a !== 'dialogue');
-  const parallelTasks = parallelAgents.map((agent) => {
-    switch (agent) {
-      case 'research':
-        return runResearchSubagent(args);
-      case 'tools':
-        return runToolsSubagent(args);
-      default:
-        return Promise.resolve(null);
-    }
-  });
+  const parallelTasks = parallelAgents.map((agent) =>
+    withAgentIdentity(agent === 'transaction' ? 'transaction' : agent, args, async ({ identity }) => {
+      switch (agent) {
+        case 'research':
+          return runResearchSubagent({ ...args, mcpIdentity: identity });
+        case 'tools':
+          return runToolsSubagent({ ...args, mcpIdentity: identity });
+        case 'transaction':
+          return runTransactionSubagent({ ...args, mcpIdentity: identity });
+        default:
+          return Promise.resolve(null);
+      }
+    }),
+  );
 
   const parallelResults = await Promise.all(parallelTasks);
 
   const research = parallelResults.find((r) => r?.role === 'research');
   const tools = parallelResults.find((r) => r?.role === 'tools');
+  const transaction = parallelResults.find((r) => r?.role === 'transaction');
   const researchSummary = research?.summary ?? '';
 
-  const dialogue = await runDialogueSubagent(args, { researchSummary });
+  const dialogue = await withAgentIdentity('dialogue', args, async ({ identity }) =>
+    runDialogueSubagent({ ...args, mcpIdentity: identity }, { researchSummary }),
+  );
 
   let content = dialogue.content;
   const toolResults = tools?.toolResults ?? [];
@@ -100,12 +126,14 @@ export async function runMultiAgentCoordinator(args) {
     multiAgent: {
       plan,
       subagents: [
-        research && { role: 'research', summaryLength: researchSummary.length },
-        tools && { role: 'tools', toolCount: toolResults.length },
+        research && { role: 'research', summaryLength: researchSummary.length, mcpRole: research.mcpRole },
+        tools && { role: 'tools', toolCount: toolResults.length, mcpRole: tools.mcpRole },
+        transaction && { role: 'transaction', hire: transaction.hire, mcpRole: transaction.mcpRole },
         { role: 'dialogue', provider: dialogue.provider },
       ].filter(Boolean),
     },
     toolResults,
     researchSummary: researchSummary.slice(0, 200),
+    escrowHire: transaction?.hire ?? null,
   };
 }

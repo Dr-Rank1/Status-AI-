@@ -1,0 +1,46 @@
+# Phase 28 — GitHub repository settings (probot/settings + branch protection)
+
+# Requires the GitHub Settings app OR apply via:
+#   ./scripts/lock_main_branch.sh owner/repo
+# Dual approval + CI gates lock production main after Golden Master v1.0.0.
+
+repository:
+  name: Status-AI-
+  description: Status — AI social simulation platform (Golden Master v1.0.0)
+  private: true
+  has_issues: true
+  has_projects: false
+  has_wiki: false
+  allow_squash_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false
+  delete_branch_on_merge: true
+  allow_auto_merge: true
+
+branches:
+  - name: main
+    protection:
+      required_pull_request_reviews:
+        required_approving_review_count: 2
+        dismiss_stale_reviews: true
+        require_code_owner_reviews: true
+        require_last_push_approval: true
+      required_status_checks:
+        strict: true
+        contexts:
+          - Backend tests & audit
+          - Flutter tests & audit
+          - test-backend
+          - test-flutter
+      enforce_admins: true
+      required_linear_history: true
+      restrictions: null
+      allow_force_pushes: false
+      allow_deletions: false
+      block_creations: false
+      required_conversation_resolution: true
+
+# CODEOWNERS-style teams (adjust to your org)
+# teams:
+#   - name: platform-leads
+#     permission: admin

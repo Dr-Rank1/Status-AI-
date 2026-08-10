@@ -7,6 +7,7 @@ import { query } from '../config/database.js';
 import { logger } from '../utils/logger.js';
 import { register } from '../observability/metrics.js';
 import { dispatchAlert } from './alertingService.js';
+import { recordAiAnomalySample } from '../observability/slaTelemetry.js';
 
 export const aiAnomalyEventsTotal = new client.Counter({
   name: 'ai_anomaly_events_total',
@@ -108,6 +109,7 @@ async function recordAnomaly({ type, severity, details, provider, mode, userId }
 
     logger.warn(`[AI Anomaly] ${type} severity=${severity} provider=${provider}`);
     aiAnomalyEventsTotal.inc({ type, severity });
+    recordAiAnomalySample({ type, severity });
   } catch (err) {
     logger.warn('[AI Anomaly] Record failed:', err.message);
   }

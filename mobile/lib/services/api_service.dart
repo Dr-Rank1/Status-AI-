@@ -263,6 +263,46 @@ class ApiService {
     return SubscriptionState.fromJson(body['data'] as Map<String, dynamic>);
   }
 
+  /// Phase 31 — V2 Beta capability probe (uses /api/v2 regardless of ApiConfig base).
+  Future<Map<String, dynamic>> fetchV2Version() async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/version');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load V2 capabilities');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> reflectV2Draft({
+    required String draft,
+    String? characterName,
+    String? incomingMessage,
+  }) async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/ai/reflect');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'draft': draft,
+        'characterName': characterName,
+        'incomingMessage': incomingMessage,
+      }),
+    );
+    _throwIfError(response, 'V2 reflection failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fetchV2EdgeVectorStatus() async {
+    final root = ApiConfig.baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
+    final uri = Uri.parse('$root/api/v2/edge/vectors/status');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load edge vector status');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['data'] as Map<String, dynamic>;
+  }
+
   Future<List<Post>> fetchPosts({int limit = 20, String? fandom}) async {
     if (!await isOnline()) {
       final cached = OfflineCacheService.loadFeed();

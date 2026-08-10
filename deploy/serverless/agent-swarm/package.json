@@ -1,0 +1,7 @@
+{
+  "name": "status-agent-swarm",
+  "version": "34.0.0",
+  "private": true,
+  "type": "module",
+  "main": "server.js"
+}

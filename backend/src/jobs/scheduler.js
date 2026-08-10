@@ -9,6 +9,7 @@ import {
   applyCooldownRegen,
 } from '../services/energyRegenService.js';
 import { runFineTuningExportWorker } from '../workers/fineTuningExportWorker.js';
+import { runWeeklyFineTuneCurationWorker } from '../workers/fineTuneCurationWorker.js';
 import { runPeriodicTipSweep } from '../services/agentTipService.js';
 import { runSyntheticSimulatorWorker } from '../workers/syntheticSimulatorWorker.js';
 import { runSelfHealingCycle } from '../workers/selfHealingDaemon.js';
@@ -22,6 +23,7 @@ const ENERGY_COOLDOWN_CRON = process.env.ENERGY_COOLDOWN_CRON ?? '0 * * * *';
 
 const NARRATIVE_EVENT_CRON = process.env.NARRATIVE_EVENT_CRON ?? '0 12 * * *';
 const FINE_TUNING_EXPORT_CRON = process.env.FINE_TUNING_EXPORT_CRON ?? '0 3 * * 0';
+const FINE_TUNING_CURATION_CRON = process.env.FINE_TUNING_CURATION_CRON ?? '0 4 * * 1';
 const AGENT_TIP_SWEEP_CRON = process.env.AGENT_TIP_SWEEP_CRON ?? '0 */6 * * *';
 const SYNTHETIC_SIM_CRON = process.env.SYNTHETIC_SIM_CRON ?? '0 2 * * *';
 const SELF_HEALING_CRON = process.env.SELF_HEALING_CRON ?? '*/5 * * * *';
@@ -77,6 +79,15 @@ export function startScheduledJobs() {
       const result = await runFineTuningExportWorker();
       if (result) {
         logger.info(`[Cron] Fine-tuning export: ${result.count} records → ${result.filePath}`);
+      }
+    }),
+
+    schedule('fine-tuning-feedback-curation', FINE_TUNING_CURATION_CRON, async () => {
+      const result = await runWeeklyFineTuneCurationWorker();
+      if (result && !result.skipped) {
+        logger.info(
+          `[Cron] Feedback curation: feedback=${result.feedback?.count ?? 0} dialogue=${result.dialogue?.count ?? 0}`,
+        );
       }
     }),
 
