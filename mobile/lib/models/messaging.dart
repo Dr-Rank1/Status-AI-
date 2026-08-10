@@ -1,0 +1,250 @@
+import 'session.dart';
+
+class AiCharacter {
+  const AiCharacter({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.fandom,
+    this.avatarUrl,
+    this.bio,
+    this.followerCount = 0,
+    this.affinity = 0,
+    this.isFollowing = false,
+    this.threadId,
+  });
+
+  final String id;
+  final String name;
+  final String handle;
+  final String fandom;
+  final String? avatarUrl;
+  final String? bio;
+  final int followerCount;
+  final int affinity;
+  final bool isFollowing;
+  final String? threadId;
+
+  AiCharacter copyWith({
+    bool? isFollowing,
+    int? affinity,
+    int? followerCount,
+    String? threadId,
+  }) {
+    return AiCharacter(
+      id: id,
+      name: name,
+      handle: handle,
+      fandom: fandom,
+      avatarUrl: avatarUrl,
+      bio: bio,
+      followerCount: followerCount ?? this.followerCount,
+      affinity: affinity ?? this.affinity,
+      isFollowing: isFollowing ?? this.isFollowing,
+      threadId: threadId ?? this.threadId,
+    );
+  }
+
+  factory AiCharacter.fromJson(Map<String, dynamic> json) {
+    return AiCharacter(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      handle: json['handle'] as String,
+      fandom: json['fandom'] as String,
+      avatarUrl: json['avatar_url'] as String?,
+      bio: json['bio'] as String?,
+      followerCount: json['follower_count'] as int? ?? 0,
+      affinity: json['affinity'] as int? ?? 0,
+      isFollowing: json['is_following'] as bool? ?? false,
+      threadId: json['thread_id'] as String?,
+    );
+  }
+}
+
+class ExploreData {
+  const ExploreData({
+    required this.characters,
+    required this.byFandom,
+  });
+
+  final List<AiCharacter> characters;
+  final Map<String, List<AiCharacter>> byFandom;
+
+  factory ExploreData.fromJson(Map<String, dynamic> json) {
+    final characters = (json['characters'] as List<dynamic>)
+        .map((e) => AiCharacter.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    final byFandomRaw = json['byFandom'] as Map<String, dynamic>;
+    final byFandom = byFandomRaw.map(
+      (key, value) => MapEntry(
+        key,
+        (value as List<dynamic>)
+            .map((e) => AiCharacter.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      ),
+    );
+
+    return ExploreData(characters: characters, byFandom: byFandom);
+  }
+}
+
+class DmThread {
+  const DmThread({
+    required this.id,
+    required this.characterId,
+    required this.characterName,
+    required this.characterHandle,
+    this.characterAvatar,
+    this.characterFandom,
+    this.lastMessagePreview,
+    this.lastSenderType,
+    this.lastMessageAt,
+    this.aiPending = false,
+  });
+
+  final String id;
+  final String characterId;
+  final String characterName;
+  final String characterHandle;
+  final String? characterAvatar;
+  final String? characterFandom;
+  final String? lastMessagePreview;
+  final String? lastSenderType;
+  final DateTime? lastMessageAt;
+  final bool aiPending;
+
+  factory DmThread.fromJson(Map<String, dynamic> json) {
+    return DmThread(
+      id: json['id'] as String,
+      characterId: json['character_id'] as String,
+      characterName: json['character_name'] as String,
+      characterHandle: json['character_handle'] as String,
+      characterAvatar: json['character_avatar'] as String?,
+      characterFandom: json['character_fandom'] as String?,
+      lastMessagePreview: json['last_message_preview'] as String?,
+      lastSenderType: json['last_sender_type'] as String?,
+      lastMessageAt: json['last_message_at'] != null
+          ? DateTime.parse(json['last_message_at'] as String)
+          : null,
+      aiPending: json['ai_pending'] as bool? ?? false,
+    );
+  }
+}
+
+class DmMessage {
+  const DmMessage({
+    required this.id,
+    required this.senderType,
+    required this.content,
+    required this.createdAt,
+    this.isRead = false,
+    this.isPending = false,
+  });
+
+  final String id;
+  final String senderType;
+  final String content;
+  final DateTime createdAt;
+  final bool isRead;
+  final bool isPending;
+
+  bool get isUser => senderType == 'user';
+  bool get isCharacter => senderType == 'character';
+
+  factory DmMessage.fromJson(Map<String, dynamic> json) {
+    return DmMessage(
+      id: json['id'] as String,
+      senderType: json['sender_type'] as String,
+      content: json['content'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      isRead: json['is_read'] as bool? ?? false,
+    );
+  }
+
+  factory DmMessage.pending(String content) {
+    return DmMessage(
+      id: 'pending-${DateTime.now().millisecondsSinceEpoch}',
+      senderType: 'user',
+      content: content,
+      createdAt: DateTime.now(),
+      isPending: true,
+    );
+  }
+}
+
+class ThreadMessagesResult {
+  const ThreadMessagesResult({
+    required this.messages,
+    required this.aiPending,
+    this.interaction,
+  });
+
+  final List<DmMessage> messages;
+  final bool aiPending;
+  final InteractionUpdate? interaction;
+}
+
+class InteractionUpdate {
+  const InteractionUpdate({
+    required this.affinity,
+    required this.reputation,
+    required this.followerCount,
+    this.affinityDelta = 0,
+    this.reputationDelta = 0,
+    this.sentiment = 'neutral',
+  });
+
+  final int affinity;
+  final int reputation;
+  final int followerCount;
+  final int affinityDelta;
+  final int reputationDelta;
+  final String sentiment;
+
+  factory InteractionUpdate.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>?;
+    return InteractionUpdate(
+      affinity: json['affinity'] as int? ?? 0,
+      reputation: user?['reputation'] as int? ?? json['reputation'] as int? ?? 0,
+      followerCount: user?['follower_count'] as int? ?? json['followerCount'] as int? ?? 0,
+      affinityDelta: json['affinityDelta'] as int? ?? 0,
+      reputationDelta: json['reputationDelta'] as int? ?? 0,
+      sentiment: json['sentiment'] as String? ?? 'neutral',
+    );
+  }
+}
+
+class DmSendResult {
+  const DmSendResult({
+    required this.userMessage,
+    required this.energy,
+    this.threadId,
+    this.aiPending = false,
+  });
+
+  final DmMessage userMessage;
+  final EnergyState energy;
+  final String? threadId;
+  final bool aiPending;
+}
+
+class FollowResult {
+  const FollowResult({
+    required this.isFollowing,
+    required this.affinity,
+    required this.user,
+  });
+
+  final bool isFollowing;
+  final int affinity;
+  final SessionUser user;
+
+  factory FollowResult.fromJson(Map<String, dynamic> json) {
+    return FollowResult(
+      isFollowing: json['isFollowing'] as bool? ?? false,
+      affinity: json['affinity'] as int? ?? 0,
+      user: SessionUser.fromJson(json['user'] as Map<String, dynamic>),
+    );
+  }
+}
