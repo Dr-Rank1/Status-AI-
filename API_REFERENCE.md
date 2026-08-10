@@ -387,5 +387,50 @@ Base: `/api/v2` — see `docs/V2_ARCHITECTURE.md`. V1 remains the production con
 | GET | `/consensus/dag` | Private | live — DAG ledger tip / config |
 | POST | `/consensus/dag/propose` | Private | live — quorum proposal |
 | POST | `/consensus/dag/vote` | Private | live — cast quorum vote |
+| POST | `/ambient/infer` | Private | live — ambient fabric suggestions (no wake word) |
+| POST | `/ambient/accept` | Private | live — queue ambient swarm job |
+| POST | `/memory/distill` | Private | live — exascale / infinite-window distillation |
+| GET | `/devops/synthesis/config` | Admin | live — code synthesis dry-run / flags |
+| POST | `/devops/synthesis` | Admin | live — draft (+ optional PR pipeline; dry-run default) |
+| GET | `/ops/freeze` | Admin | live — Golden Master 2.0 / autopilot lock status |
+| POST | `/quantum/allocate` | Private | live — quantum-classical multi-agent allocation |
+| POST | `/quantum/rag-path` | Private | live — combinatorial RAG pathfinding |
+| POST | `/quantum/tune-distill` | Private | live — annealing hyper-params for distillation |
+| GET | `/robotics/config` | Private | live — ROS 2 MCP bridge config |
+| POST | `/robotics/telemetry` | Private | live — ingest lidar / depth telemetry |
+| POST | `/robotics/actuate` | Private | live — sandboxed cmd_vel queue |
+| POST | `/robotics/bind` | Private | live — avatar → robot embodiment bind |
+| POST | `/alignment/observe` | Private | live — coherence / drift / ethical observe |
+| POST | `/alignment/bench` | Admin | live — synthetic alignment suite |
+| GET | `/consensus/dtn/config` | Private | live — DTN Bundle Protocol config |
+| POST | `/consensus/dtn/bundle` | Private | live — create bundle / local DTN tx |
+| POST | `/consensus/dtn/reconcile` | Private | live — high-latency ledger reconcile |
+| POST | `/photonic/matmul` | Private | live — optical-class matmul (OPU/CPU-sim) |
+| POST | `/photonic/search` | Private | live — photonic vector search / intent decode |
+| GET | `/photonic/config` | Private | live — photonic bridge config |
+| POST | `/storage/molecular/archive` | Admin | live — DNA nucleotide cold archive + RS ECC |
+| GET | `/storage/molecular/retrieve/:id` | Admin | live — verify + retrieve molecular snapshot |
+| GET | `/network/leo/config` | Private | live — LEO constellation / DTN mesh |
+| POST | `/network/leo/route` | Private | live — orbital route + doppler compensation |
+| POST | `/network/leo/sync` | Private | live — satellite↔ground DTN sync |
+| POST | `/continuity/capsule` | Admin | live — non-custodial continuity capsule |
+| POST | `/continuity/recover` | Admin | live — reinstantiate agent / daemon tick |
+| POST | `/organoid/sparse` | Private | live — bio spikes → sparse tensor |
+| POST | `/organoid/recall` | Private | live — hyper-associative organoid recall |
+| POST | `/quantum/entangle` | Private | live — create EPR-sim entangled channel |
+| POST | `/quantum/entangle/sync` | Private | live — near-zero-latency memory sync |
+| GET | `/devops/energy/config` | Private | live — green/orbital energy sites |
+| POST | `/devops/energy/route` | Admin | live — carbon/thermal-aware workload route |
+| GET | `/devops/meta-compiler/config` | Admin | live — meta-compiler zero-trust config |
+| POST | `/devops/meta-compiler/tick` | Admin | live — analyze / sandbox-compile (no hot-swap) |
+| GET | `/ops/global-brain` | Admin | live — Planetary Global Brain telemetry |
+| POST | `/ops/global-brain/tune` | Admin | live — macro cognitive bandwidth retune |
+| POST | `/context/chrono/branch` | Private | live — open non-linear chrono branch |
+| POST | `/context/chrono/event` | Private | live — append chrono branch event |
+| POST | `/context/chrono/sync` | Private | live — paradox resolve + substrate sync |
+| GET | `/devops/dyson/config` | Private | live — Dyson swarm energy config |
+| POST | `/devops/dyson/route` | Admin | live — irradiance-gated pretrain routing |
+| GET | `/ops/genesis-key` | Admin | ceremonial — Genesis Key status |
+| POST | `/ops/genesis-key/rotate` | Admin | ceremonial — rotate (dry-run default) |
 
 **Headers:** `X-Status-Data-Residency`, `X-Status-Serving-Version`, `X-Status-QKD-Channel`, `X-API-Version`, `X-MCP-Agent-Token` / `Authorization: MCP <token>`, `Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version` (`2026-07-28`), `Mcp-Cache-Scope`, `Mcp-Request-Id`, `Payment-Required` (HTTP 402), `X-ZK-Agent-Proof`, `Acp-Version`, `A2A-Agent-Id`, `X-Agent-Role`, `X-Agent-Action`

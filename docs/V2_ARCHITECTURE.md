@@ -167,6 +167,53 @@ No sticky sessions: MRTR state lives in Redis/Postgres (`023_phase34_mcp_mrtr.sq
 | Voice | Full-duplex Socket.IO `voice_duplex_*` + bio prosody |
 | DAG quorum | `dagQuorumLedger.js` — 2/3 signatures, rogue quarantine |
 
+## 15. Phase 40 — Ambient fabric, exascale RAG, code synthesis, V3 Genesis
+
+| Surface | Notes |
+|---------|-------|
+| Ambient OS bridges | Flutter `AmbientCognitiveFabricService` + Android/iOS/Ubuntu |
+| Exascale RAG | `contextDistillationService` — temporal cluster + vector compression |
+| Code synthesis | `githubPrSynthesisService` — dry-run default, no force-push |
+| Freeze | `scripts/golden_master_2_freeze.sh` → Golden Master 2.0 |
+| Next major | `docs/V3_GENESIS_ARCHITECTURE.md` (blueprint only) |
+
+## 16. Phase 41 — Quantum hybrid, ROS 2, alignment, DTN
+
+| Surface | Notes |
+|---------|-------|
+| Quantum hybrid | `quantumHybridSolver` — annealing + optional Qiskit/PennyLane bridges |
+| ROS 2 MCP | `ros2McpBridge` + MCP tools `ros2_*` / `quantum_hybrid_optimize` |
+| Alignment | `syntheticAlignmentBench` — coherence, drift, ethical vectors |
+| DTN | `dtnBundleProtocol` — RFC 9171–shaped custody + reconcile |
+
+## 17. Phase 42 — Photonic, molecular DNA, LEO, continuity
+
+| Surface | Notes |
+|---------|-------|
+| Photonic OPU | Native `photonic_compute_bridge` + Node/Flutter optical-sim |
+| Molecular archive | DNA A/C/G/T + Reed-Solomon cold storage |
+| LEO mesh | `leoOrbitalMeshRouter` + `deploy/orbital/leo_mesh_router.yaml` |
+| Continuity | Non-custodial capsules → molecular recover across clusters |
+
+## 18. Phase 43 — Organoid, entanglement, energy, meta-compiler
+
+| Surface | Notes |
+|---------|-------|
+| Organoid OI | Native `organoid_compute_bridge` — spikes → sparse tensors |
+| Entanglement sync | `entanglementSyncService` — EPR-sim near-zero RTT |
+| Energy router | Green microgrids + orbital solar swarm scaling |
+| Meta-compiler | Rust/C++ + Node daemon; sandboxed artifacts, no default hot-swap |
+
+## 19. Phase 44 — Planetary Global Brain, chrono, Dyson, V4
+
+| Surface | Notes |
+|---------|-------|
+| Global Brain | Dashboard `/global-brain` + macro bandwidth tuning |
+| Chrono paradox | Vector-clock LWW / merge into temporal KG |
+| Dyson energy | Irradiance-gated pretrain + Terraform/Pulumi stubs |
+| Genesis Key | Ceremonial rotation; HITL/kill-switch preserved |
+| V4 doc | `docs/V4_UNIVERSAL_SUBSTRATE.md` |
+
 ---
 
-*Phase 30–39: V2 spans GA through spatially embodied, quorum-secured agent swarms.*
+*Phase 30–44: V2 spans ambient autopilot through planetary sentience and ceremonial substrate handoff. V4 is blueprint + gated ceremony — humans retain override.*

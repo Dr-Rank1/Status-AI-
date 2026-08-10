@@ -162,6 +162,95 @@ router.get('/version', (_req, res) => {
           status: 'live',
           endpoints: ['/api/v2/consensus/dag/propose'],
         },
+        ambientFabric: {
+          status: 'live',
+          endpoints: ['/api/v2/ambient/infer', '/api/v2/ambient/accept'],
+        },
+        exascaleRag: {
+          status: 'live',
+          endpoints: ['/api/v2/memory/distill'],
+        },
+        codeSynthesis: {
+          status: 'live',
+          endpoints: ['/api/v2/devops/synthesis'],
+          dryRunDefault: true,
+        },
+        v3Genesis: {
+          status: 'blueprint',
+          doc: 'docs/V3_GENESIS_ARCHITECTURE.md',
+        },
+        quantumHybrid: {
+          status: 'live',
+          endpoints: ['/api/v2/quantum/allocate', '/api/v2/quantum/rag-path', '/api/v2/quantum/tune-distill'],
+        },
+        ros2Mcp: {
+          status: 'live',
+          endpoints: ['/api/v2/robotics/telemetry', '/api/v2/robotics/actuate', '/api/v2/robotics/bind'],
+        },
+        syntheticAlignment: {
+          status: 'live',
+          endpoints: ['/api/v2/alignment/observe', '/api/v2/alignment/bench'],
+        },
+        dtn: {
+          status: 'live',
+          endpoints: ['/api/v2/consensus/dtn/bundle', '/api/v2/consensus/dtn/reconcile'],
+        },
+        photonic: {
+          status: 'live',
+          endpoints: ['/api/v2/photonic/matmul', '/api/v2/photonic/search'],
+          native: 'mobile/native/photonic_compute_bridge',
+        },
+        molecularArchive: {
+          status: 'live',
+          endpoints: ['/api/v2/storage/molecular/archive', '/api/v2/storage/molecular/retrieve'],
+        },
+        leoMesh: {
+          status: 'live',
+          endpoints: ['/api/v2/network/leo/route', '/api/v2/network/leo/sync'],
+          config: 'deploy/orbital/leo_mesh_router.yaml',
+        },
+        interplanetaryContinuity: {
+          status: 'live',
+          endpoints: ['/api/v2/continuity/capsule', '/api/v2/continuity/recover'],
+        },
+        organoid: {
+          status: 'live',
+          endpoints: ['/api/v2/organoid/sparse', '/api/v2/organoid/recall'],
+          native: 'mobile/native/organoid_compute_bridge',
+        },
+        entanglementSync: {
+          status: 'live',
+          endpoints: ['/api/v2/quantum/entangle', '/api/v2/quantum/entangle/sync'],
+        },
+        energyRouter: {
+          status: 'live',
+          endpoints: ['/api/v2/devops/energy/route'],
+        },
+        metaCompiler: {
+          status: 'live',
+          endpoints: ['/api/v2/devops/meta-compiler/tick'],
+          hotSwapDefault: false,
+        },
+        globalBrain: {
+          status: 'live',
+          endpoints: ['/api/v2/ops/global-brain', '/api/v2/ops/global-brain/tune'],
+          dashboard: '/global-brain',
+        },
+        chronoParadox: {
+          status: 'live',
+          endpoints: ['/api/v2/context/chrono/branch', '/api/v2/context/chrono/sync'],
+        },
+        dysonEnergy: {
+          status: 'live',
+          endpoints: ['/api/v2/devops/dyson/route'],
+          iaC: ['infra/dyson/orbital_pretrain.tf', 'infra/dyson/Pulumi.yaml'],
+        },
+        genesisKey: {
+          status: 'ceremonial',
+          endpoints: ['/api/v2/ops/genesis-key/rotate'],
+          dryRunDefault: true,
+          doc: 'docs/V4_UNIVERSAL_SUBSTRATE.md',
+        },
       },
       deprecations: [],
       migrationGuide: 'See docs/V2_ARCHITECTURE.md',
@@ -1292,6 +1381,712 @@ router.post(
         approve: req.body.approve !== false,
       }),
     });
+  }),
+);
+
+/** Phase 40 — Ambient fabric, exascale distill, code synthesis, freeze status */
+router.post(
+  '/ambient/infer',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { inferAmbientSuggestions, getAmbientConfig } = await import(
+      '../../services/ambient/ambientSuggestionService.js'
+    );
+    const result = inferAmbientSuggestions({
+      transcript: req.body.transcript ?? req.body.text ?? '',
+      activity: req.body.activity,
+      locationLabel: req.body.locationLabel,
+      calendarBusy: Boolean(req.body.calendarBusy),
+      recentIntent: req.body.recentIntent,
+    });
+    res.json({ data: { ...result, config: getAmbientConfig() } });
+  }),
+);
+
+router.post(
+  '/ambient/accept',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { acceptAmbientSuggestion } = await import(
+      '../../services/ambient/ambientSuggestionService.js'
+    );
+    const job = await acceptAmbientSuggestion({
+      suggestion: req.body.suggestion ?? req.body,
+      userId: req.user.id,
+      characterId: req.body.characterId,
+    });
+    res.status(202).json({ data: job });
+  }),
+);
+
+router.post(
+  '/memory/distill',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { distillInfiniteContext, getExascaleRagConfig } = await import(
+      '../../services/context/contextDistillationService.js'
+    );
+    const result = await distillInfiniteContext({
+      userId: req.user.id,
+      characterId: req.body.characterId,
+      queryText: req.body.query ?? req.body.message ?? '',
+      recentMessages: req.body.recentMessages ?? [],
+      episodicEvents: req.body.episodicEvents ?? [],
+      tokenBudget: req.body.tokenBudget,
+      metadata: req.body.metadata ?? {},
+    });
+    res.json({ data: { ...result, config: getExascaleRagConfig() } });
+  }),
+);
+
+router.get(
+  '/devops/synthesis/config',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getCodeSynthesisConfig } = await import(
+      '../../services/devops/githubPrSynthesisService.js'
+    );
+    res.json({ data: getCodeSynthesisConfig() });
+  }),
+);
+
+router.post(
+  '/devops/synthesis',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runAutonomousSynthesisPipeline, synthesizeCodeChange } = await import(
+      '../../services/devops/githubPrSynthesisService.js'
+    );
+    if (req.body?.pipeline === false) {
+      const artifact = await synthesizeCodeChange({
+        title: req.body.title,
+        description: req.body.description,
+        kind: req.body.kind ?? 'refactor',
+        targetPaths: req.body.targetPaths ?? [],
+        errorEvent: req.body.errorEvent,
+        requestedBy: req.user.id,
+      });
+      return res.status(201).json({ data: artifact });
+    }
+    const result = await runAutonomousSynthesisPipeline({
+      title: req.body.title,
+      description: req.body.description,
+      kind: req.body.kind ?? 'refactor',
+      targetPaths: req.body.targetPaths ?? [],
+      errorEvent: req.body.errorEvent,
+      requestedBy: req.user.id,
+    });
+    res.status(201).json({ data: result });
+  }),
+);
+
+router.get(
+  '/ops/freeze',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    res.json({
+      data: {
+        goldenMaster: '2.0.0',
+        autopilot: 'continuous',
+        v3Blueprint: 'docs/V3_GENESIS_ARCHITECTURE.md',
+        freezeScript: 'scripts/golden_master_2_freeze.sh',
+        locks: [
+          'no_force_push_main',
+          'no_skip_hooks',
+          'v1_backward_compatible',
+          'rls_tenant_isolation',
+        ],
+      },
+    });
+  }),
+);
+
+/** Phase 41 — Quantum hybrid, ROS 2, alignment, DTN */
+router.post(
+  '/quantum/allocate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { allocateAgentResources, getQuantumHybridConfig } = await import(
+      '../../services/quantum/quantumHybridSolver.js'
+    );
+    const result = await allocateAgentResources({
+      agents: req.body.agents ?? [],
+      resources: req.body.resources ?? [],
+      seed: req.body.seed,
+    });
+    res.json({ data: { ...result, config: getQuantumHybridConfig() } });
+  }),
+);
+
+router.post(
+  '/quantum/rag-path',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { optimizeRagPath } = await import('../../services/quantum/quantumHybridSolver.js');
+    const result = await optimizeRagPath({
+      nodes: req.body.nodes ?? [],
+      queryText: req.body.query ?? req.body.queryText ?? '',
+      topK: req.body.topK ?? 5,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.post(
+  '/quantum/tune-distill',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { tuneDistillationHyperparams } = await import(
+      '../../services/quantum/quantumHybridSolver.js'
+    );
+    const result = await tuneDistillationHyperparams(req.body ?? {});
+    res.json({ data: result });
+  }),
+);
+
+router.get(
+  '/robotics/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getRos2BridgeConfig } = await import('../../services/robotics/ros2McpBridge.js');
+    res.json({ data: getRos2BridgeConfig() });
+  }),
+);
+
+router.post(
+  '/robotics/telemetry',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { ingestRos2Telemetry, listRecentTelemetry, formatRoboticsPromptBlock } = await import(
+      '../../services/robotics/ros2McpBridge.js'
+    );
+    const entry = ingestRos2Telemetry(req.body ?? {});
+    const recent = listRecentTelemetry({ limit: req.body.limit ?? 8, kind: req.body.kind });
+    res.status(201).json({
+      data: {
+        entry,
+        recent,
+        promptBlock: formatRoboticsPromptBlock(recent),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/robotics/actuate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { queueRos2Actuation } = await import('../../services/robotics/ros2McpBridge.js');
+    const cmd = await queueRos2Actuation({
+      ...req.body,
+      agentId: req.user.id,
+    });
+    res.status(202).json({ data: cmd });
+  }),
+);
+
+router.post(
+  '/robotics/bind',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { bindEmbodiment } = await import('../../services/robotics/ros2McpBridge.js');
+    res.status(201).json({ data: bindEmbodiment(req.body ?? {}) });
+  }),
+);
+
+router.post(
+  '/alignment/observe',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { observeAlignmentTurn, getAlignmentConfig } = await import(
+      '../../services/alignment/syntheticAlignmentBench.js'
+    );
+    const result = observeAlignmentTurn({
+      agentId: req.body.agentId ?? 'status.dialogue',
+      characterId: req.body.characterId,
+      prompt: req.body.prompt ?? '',
+      response: req.body.response ?? '',
+      action: req.body.action,
+      amount: req.body.amount ?? 0,
+    });
+    res.json({ data: { ...result, config: getAlignmentConfig() } });
+  }),
+);
+
+router.post(
+  '/alignment/bench',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runSyntheticAlignmentSuite } = await import(
+      '../../services/alignment/syntheticAlignmentBench.js'
+    );
+    res.json({ data: runSyntheticAlignmentSuite({ cases: req.body.cases }) });
+  }),
+);
+
+router.get(
+  '/consensus/dtn/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getDtnConfig } = await import('../../services/consensus/dtnBundleProtocol.js');
+    res.json({ data: getDtnConfig() });
+  }),
+);
+
+router.post(
+  '/consensus/dtn/bundle',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { createBundle, executeLocalDtnTransaction } = await import(
+      '../../services/consensus/dtnBundleProtocol.js'
+    );
+    if (req.body?.transaction) {
+      const out = executeLocalDtnTransaction({
+        nodeId: req.body.nodeId ?? 'edge-1',
+        operation: req.body.operation ?? 'ledger_append',
+        payload: req.body.payload ?? {},
+        destNode: req.body.destNode ?? 'core',
+      });
+      return res.status(201).json({ data: out });
+    }
+    const bundle = createBundle(req.body ?? {});
+    res.status(201).json({ data: bundle });
+  }),
+);
+
+router.post(
+  '/consensus/dtn/reconcile',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { reconcileDtnState } = await import('../../services/consensus/dtnBundleProtocol.js');
+    const result = await reconcileDtnState({
+      connected: req.body.connected !== false,
+      nodeId: req.body.nodeId ?? 'edge-1',
+    });
+    res.json({ data: result });
+  }),
+);
+
+/** Phase 42 — Photonic, molecular DNA, LEO mesh, continuity */
+router.post(
+  '/photonic/matmul',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { photonicMatmul, getPhotonicConfig } = await import(
+      '../../services/photonic/photonicComputeService.js'
+    );
+    const result = photonicMatmul(req.body.a ?? [[1, 0], [0, 1]], req.body.b ?? [[1, 0], [0, 1]]);
+    res.json({ data: { ...result, config: getPhotonicConfig() } });
+  }),
+);
+
+router.post(
+  '/photonic/search',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { photonicVectorSearch, photonicDecodeIntent } = await import(
+      '../../services/photonic/photonicComputeService.js'
+    );
+    if (req.body?.intentFeatures) {
+      return res.json({ data: photonicDecodeIntent(req.body.intentFeatures) });
+    }
+    res.json({
+      data: photonicVectorSearch(req.body.query ?? [], req.body.corpus ?? []),
+    });
+  }),
+);
+
+router.get(
+  '/photonic/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getPhotonicConfig } = await import('../../services/photonic/photonicComputeService.js');
+    res.json({ data: getPhotonicConfig() });
+  }),
+);
+
+router.post(
+  '/storage/molecular/archive',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { archiveToMolecularStorage, getMolecularStorageConfig } = await import(
+      '../../services/storage/molecularDnaEncoder.js'
+    );
+    const artifact = await archiveToMolecularStorage({
+      label: req.body.label ?? 'memory-ledger',
+      records: req.body.records ?? [],
+      metadata: req.body.metadata ?? {},
+    });
+    const { _shards, _dna, ...safe } = artifact;
+    res.status(201).json({ data: { ...safe, config: getMolecularStorageConfig() } });
+  }),
+);
+
+router.get(
+  '/storage/molecular/retrieve/:id',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { retrieveMolecularArchive } = await import(
+      '../../services/storage/molecularDnaEncoder.js'
+    );
+    res.json({ data: await retrieveMolecularArchive(req.params.id) });
+  }),
+);
+
+router.get(
+  '/network/leo/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getLeoMeshConfig } = await import('../../services/network/leoOrbitalMeshRouter.js');
+    res.json({ data: getLeoMeshConfig() });
+  }),
+);
+
+router.post(
+  '/network/leo/route',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { selectOrbitalRoute, compensateDoppler } = await import(
+      '../../services/network/leoOrbitalMeshRouter.js'
+    );
+    const route = selectOrbitalRoute({
+      latDeg: req.body.latDeg ?? 0,
+      lonDeg: req.body.lonDeg ?? 0,
+      preferMaritime: Boolean(req.body.preferMaritime),
+      atMs: req.body.atMs,
+    });
+    res.json({
+      data: {
+        route,
+        dopplerCheck: compensateDoppler({
+          radialVelocityKmS: route.geometry.radialVelocityKmS,
+          frequencyHz: req.body.frequencyHz,
+        }),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/network/leo/sync',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { syncViaLeoMesh } = await import('../../services/network/leoOrbitalMeshRouter.js');
+    const result = await syncViaLeoMesh({
+      edgeNodeId: req.body.edgeNodeId ?? 'maritime-1',
+      groundNodeId: req.body.groundNodeId ?? 'gs-atlantic',
+      payload: req.body.payload ?? {},
+      latDeg: req.body.latDeg ?? 0,
+      lonDeg: req.body.lonDeg ?? 0,
+      connected: req.body.connected !== false,
+    });
+    res.status(202).json({ data: result });
+  }),
+);
+
+router.post(
+  '/continuity/capsule',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { createContinuityCapsule, getContinuityConfig } = await import(
+      '../../services/continuity/interplanetaryContinuity.js'
+    );
+    const result = await createContinuityCapsule({
+      agentId: req.body.agentId ?? `agent-${req.user.id}`,
+      characterId: req.body.characterId,
+      state: req.body.state ?? {},
+      memoryRecords: req.body.memoryRecords ?? [],
+    });
+    res.status(201).json({ data: { ...result, config: getContinuityConfig() } });
+  }),
+);
+
+router.post(
+  '/continuity/recover',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { recoverAgentFromCapsule, runContinuityDaemonTick } = await import(
+      '../../services/continuity/interplanetaryContinuity.js'
+    );
+    if (req.body?.daemonTick) {
+      return res.json({
+        data: await runContinuityDaemonTick({
+          missingAgentIds: req.body.missingAgentIds ?? [],
+        }),
+      });
+    }
+    res.json({
+      data: await recoverAgentFromCapsule({
+        capsuleId: req.body.capsuleId,
+        preferredCluster: req.body.preferredCluster,
+      }),
+    });
+  }),
+);
+
+/** Phase 43 — Organoid, entanglement sync, energy router, meta-compiler */
+router.post(
+  '/organoid/sparse',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { spikesToSparse, getOrganoidConfig } = await import(
+      '../../services/organoid/organoidComputeService.js'
+    );
+    res.json({
+      data: { ...spikesToSparse(req.body.spikes ?? []), config: getOrganoidConfig() },
+    });
+  }),
+);
+
+router.post(
+  '/organoid/recall',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { associativeRecall } = await import('../../services/organoid/organoidComputeService.js');
+    res.json({
+      data: associativeRecall(req.body.query ?? [], req.body.bank ?? []),
+    });
+  }),
+);
+
+router.post(
+  '/quantum/entangle',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { entangleNodes, getEntanglementConfig } = await import(
+      '../../services/quantum/entanglementSyncService.js'
+    );
+    const pair = entangleNodes({
+      nodes: req.body.nodes ?? ['node-a', 'node-b'],
+      dimension: req.body.dimension ?? 64,
+      seed: req.body.seed,
+    });
+    res.status(201).json({ data: { ...pair, config: getEntanglementConfig() } });
+  }),
+);
+
+router.post(
+  '/quantum/entangle/sync',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { syncEntangledMemory, measureEntangledState } = await import(
+      '../../services/quantum/entanglementSyncService.js'
+    );
+    const result = syncEntangledMemory({
+      pairId: req.body.pairId,
+      fromNode: req.body.fromNode,
+      vector: req.body.vector ?? [],
+      metadata: req.body.metadata ?? {},
+    });
+    res.json({
+      data: { ...result, measured: measureEntangledState(req.body.pairId) },
+    });
+  }),
+);
+
+router.get(
+  '/devops/energy/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getEnergyRouterConfig } = await import(
+      '../../services/devops/energyAwareWorkloadRouter.js'
+    );
+    res.json({ data: getEnergyRouterConfig() });
+  }),
+);
+
+router.post(
+  '/devops/energy/route',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { routeEnergyAwareWorkload } = await import(
+      '../../services/devops/energyAwareWorkloadRouter.js'
+    );
+    const plan = await routeEnergyAwareWorkload({
+      workload: req.body.workload ?? { type: 'inference', flopsEstimate: 1e12 },
+      signals: req.body.signals ?? {},
+      preferOrbital: Boolean(req.body.preferOrbital),
+      maxSites: req.body.maxSites ?? 2,
+    });
+    res.json({ data: plan });
+  }),
+);
+
+router.get(
+  '/devops/meta-compiler/config',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getMetaCompilerConfig } = await import('../../services/devops/metaCompilerDaemon.js');
+    res.json({ data: getMetaCompilerConfig() });
+  }),
+);
+
+router.post(
+  '/devops/meta-compiler/tick',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runMetaCompilerTick, analyzeBottlenecks, proposeSandboxedRewrite, sandboxCompile } =
+      await import('../../services/devops/metaCompilerDaemon.js');
+    if (req.body?.proposeOnly) {
+      const [b] = analyzeBottlenecks(req.body.metrics ?? req.body);
+      const proposal = await proposeSandboxedRewrite(b);
+      const compiled = await sandboxCompile(proposal);
+      return res.status(201).json({ data: { proposal, compiled } });
+    }
+    res.json({ data: await runMetaCompilerTick(req.body.metrics ?? req.body) });
+  }),
+);
+
+/** Phase 44 — Global Brain, chrono paradox, Dyson, Genesis Key */
+router.get(
+  '/ops/global-brain',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { getGlobalBrainSnapshot, getGlobalBrainConfig } = await import(
+      '../../services/sentience/globalBrainService.js'
+    );
+    const signals = (() => {
+      try {
+        return req.query.signals ? JSON.parse(String(req.query.signals)) : {};
+      } catch {
+        return {};
+      }
+    })();
+    const snap = await getGlobalBrainSnapshot({
+      signals,
+      autoTune: req.query.autoTune !== 'false',
+    });
+    res.json({ data: { ...snap, config: getGlobalBrainConfig() } });
+  }),
+);
+
+router.post(
+  '/ops/global-brain/tune',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { predictRegionalSpikes, tuneGlobalBandwidth, getGlobalBrainSnapshot } = await import(
+      '../../services/sentience/globalBrainService.js'
+    );
+    const predictions = predictRegionalSpikes({ signals: req.body.signals ?? {} });
+    const tuning = tuneGlobalBandwidth({ predictions, dampening: req.body.dampening ?? 0.35 });
+    const snap = await getGlobalBrainSnapshot({ signals: req.body.signals ?? {}, autoTune: false });
+    res.json({ data: { tuning, snapshot: { ...snap, regions: tuning.allocations } } });
+  }),
+);
+
+router.post(
+  '/context/chrono/branch',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { openChronoBranch, appendChronoEvent, getChronoConfig } = await import(
+      '../../services/context/chronoParadoxResolver.js'
+    );
+    const branch = openChronoBranch({
+      nodeId: req.body.nodeId ?? 'edge-deep',
+      environment: req.body.environment ?? 'deep-space',
+      baseVectorClock: req.body.baseVectorClock ?? {},
+    });
+    if (req.body.event) {
+      appendChronoEvent(branch.branchId, req.body.event);
+    }
+    res.status(201).json({ data: { branch, config: getChronoConfig() } });
+  }),
+);
+
+router.post(
+  '/context/chrono/event',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { appendChronoEvent } = await import('../../services/context/chronoParadoxResolver.js');
+    const event = appendChronoEvent(req.body.branchId, req.body);
+    res.status(201).json({ data: event });
+  }),
+);
+
+router.post(
+  '/context/chrono/sync',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { syncChronoBranchToGlobal, detectChronoConflicts, resolveChronoConflicts } = await import(
+      '../../services/context/chronoParadoxResolver.js'
+    );
+    if (req.body?.resolveOnly) {
+      const conflicts = detectChronoConflicts(req.body.local ?? [], req.body.remote ?? []);
+      return res.json({ data: { conflicts, resolutions: resolveChronoConflicts(conflicts) } });
+    }
+    const result = await syncChronoBranchToGlobal({
+      branchId: req.body.branchId,
+      globalMemories: req.body.globalMemories ?? [],
+      persist: req.body.persist !== false,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.get(
+  '/devops/dyson/config',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getDysonOrchestrationConfig } = await import(
+      '../../services/devops/dysonEnergyOrchestrator.js'
+    );
+    res.json({ data: getDysonOrchestrationConfig() });
+  }),
+);
+
+router.post(
+  '/devops/dyson/route',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { routeDysonianWorkload } = await import(
+      '../../services/devops/dysonEnergyOrchestrator.js'
+    );
+    const plan = await routeDysonianWorkload({
+      workload: req.body.workload ?? { type: 'pretrain', flopsEstimate: 1e18 },
+      signals: req.body.signals ?? {},
+      irradianceWm2: req.body.irradianceWm2,
+      forceOrbitalPretrain: req.body.forceOrbitalPretrain !== false,
+      maxSites: req.body.maxSites ?? 2,
+    });
+    res.json({ data: plan });
+  }),
+);
+
+router.get(
+  '/ops/genesis-key',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getGenesisKeyStatus } = await import('../../services/security/genesisKeyService.js');
+    res.json({ data: getGenesisKeyStatus() });
+  }),
+);
+
+router.post(
+  '/ops/genesis-key/rotate',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { rotateGenesisKey } = await import('../../services/security/genesisKeyService.js');
+    const record = await rotateGenesisKey({
+      rotatedBy: req.body.rotatedBy ?? req.user.id,
+      confirmToken: req.body.confirmToken,
+    });
+    res.status(201).json({ data: record });
   }),
 );
 

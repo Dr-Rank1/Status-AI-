@@ -255,6 +255,10 @@ function toolScopeFor(toolName) {
     create_calendar_event: 'calendar:write',
     generate_external_link: 'links:write',
     run_sandboxed_script: 'sandbox:execute',
+    ros2_read_sensors: 'robot:sense',
+    ros2_publish_cmd: 'robot:actuate',
+    ros2_bind_embodiment: 'robot:embody',
+    quantum_hybrid_optimize: 'compute:hybrid',
   };
   return map[toolName] ?? null;
 }

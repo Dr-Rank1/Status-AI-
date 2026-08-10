@@ -1,0 +1,8 @@
+name: status-dyson-orbital
+runtime: nodejs20
+description: Phase 44 — Pulumi Dyson-swarm irradiance-gated pretrain router
+
+config:
+  status-dyson-orbital:irradianceWm2: "1200"
+  status-dyson-orbital:irradianceMinWm2: "950"
+  status-dyson-orbital:workloadType: "pretrain"

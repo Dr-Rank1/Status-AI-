@@ -1106,3 +1106,157 @@ POST /api/v2/voice/duplex/session
 POST /api/v2/consensus/dag/propose
 ```
 
+## Phase 40 — Ambient Fabric, Exascale RAG, Code Synthesis & V3 Genesis
+
+| Component | Path |
+|-----------|------|
+| Ambient fabric (Flutter) | `mobile/lib/services/ambient_cognitive_fabric_service.dart` |
+| Android bridge | `mobile/android/.../MainActivity.kt` (`com.status/ambient`) |
+| iOS stub | `mobile/ios/Runner/AmbientFabricPlugin.swift.stub` |
+| Ubuntu bridge | `scripts/ambient_ubuntu_bridge.sh` |
+| Ambient suggestions | `backend/src/services/ambient/ambientSuggestionService.js` |
+| Context distillation | `backend/src/services/context/contextDistillationService.js` |
+| GitHub PR synthesis | `backend/src/services/devops/githubPrSynthesisService.js` |
+| V3 Genesis blueprint | `docs/V3_GENESIS_ARCHITECTURE.md` |
+| Golden Master 2.0 freeze | `scripts/golden_master_2_freeze.sh` |
+
+```bash
+# Ambient (no wake word)
+POST /api/v2/ambient/infer
+POST /api/v2/ambient/accept
+
+# Exascale infinite-window distill
+POST /api/v2/memory/distill
+
+# Autopilot code synthesis (dry-run by default)
+GET  /api/v2/devops/synthesis/config
+POST /api/v2/devops/synthesis
+
+# Freeze / autopilot lock
+GET  /api/v2/ops/freeze
+./scripts/golden_master_2_freeze.sh
+```
+
+Code synthesis requires `AUTOPILOT_GITHUB_SYNTHESIS=true` and `CODE_SYNTHESIS_DRY_RUN=false` to open real PRs; human review labels are always applied. V1 APIs stay frozen under Golden Master 2.0 continuous autopilot.
+
+## Phase 41 — Quantum Hybrid, ROS 2 Embodiment, Alignment & DTN
+
+| Component | Path |
+|-----------|------|
+| Quantum-classical hybrid solver | `backend/src/services/quantum/quantumHybridSolver.js` |
+| ROS 2 MCP bridge | `backend/src/services/robotics/ros2McpBridge.js` |
+| ROS 2 Ubuntu bridge script | `scripts/ros2_mcp_bridge.sh` |
+| Synthetic alignment bench | `backend/src/services/alignment/syntheticAlignmentBench.js` |
+| DTN Bundle Protocol | `backend/src/services/consensus/dtnBundleProtocol.js` |
+
+```bash
+# Hybrid allocation / RAG path / distill tune
+POST /api/v2/quantum/allocate
+POST /api/v2/quantum/rag-path
+POST /api/v2/quantum/tune-distill
+
+# Embodied robotics (MCP tools: ros2_*)
+POST /api/v2/robotics/telemetry
+POST /api/v2/robotics/actuate
+./scripts/ros2_mcp_bridge.sh
+
+# Alignment continuous bench
+POST /api/v2/alignment/observe
+POST /api/v2/alignment/bench
+
+# Delay-tolerant networking (RFC 9171–shaped)
+POST /api/v2/consensus/dtn/bundle
+POST /api/v2/consensus/dtn/reconcile
+```
+
+ROS actuation is sandboxed unless `ROS2_LIVE_PUBLISH=true`. Quantum defaults to simulated annealing; optional Qiskit/PennyLane HTTP bridges via env flags.
+
+## Phase 42 — Photonic Compute, Molecular DNA, LEO Mesh & Continuity
+
+| Component | Path |
+|-----------|------|
+| Photonic C++ bridge | `mobile/native/photonic_compute_bridge/` |
+| Flutter FFI service | `mobile/lib/services/photonic_compute_bridge_service.dart` |
+| Node photonic service | `backend/src/services/photonic/photonicComputeService.js` |
+| Molecular DNA encoder | `backend/src/services/storage/molecularDnaEncoder.js` |
+| LEO orbital router | `backend/src/services/network/leoOrbitalMeshRouter.js` |
+| LEO config | `deploy/orbital/leo_mesh_router.yaml` |
+| Continuity protocol | `backend/src/services/continuity/interplanetaryContinuity.js` |
+
+```bash
+# Photonic optical inference
+POST /api/v2/photonic/matmul
+POST /api/v2/photonic/search
+
+# DNA cold archive (1000y target + Reed-Solomon)
+POST /api/v2/storage/molecular/archive
+GET  /api/v2/storage/molecular/retrieve/:id
+
+# LEO DTN mesh (doppler + handover)
+POST /api/v2/network/leo/route
+POST /api/v2/network/leo/sync
+
+# Interplanetary agent continuity
+POST /api/v2/continuity/capsule
+POST /api/v2/continuity/recover
+```
+
+## Phase 43 — Organoid Wetware, Entanglement Sync, Energy Routing & Meta-Compiler
+
+| Component | Path |
+|-----------|------|
+| Organoid C++ bridge | `mobile/native/organoid_compute_bridge/` (`status_organoid.h`) |
+| Organoid Node service | `backend/src/services/organoid/organoidComputeService.js` |
+| Entanglement sync | `backend/src/services/quantum/entanglementSyncService.js` |
+| Energy-aware router | `backend/src/services/devops/energyAwareWorkloadRouter.js` |
+| Meta-compiler (Rust/C++) | `native/meta_compiler/` |
+| Meta-compiler daemon | `backend/src/services/devops/metaCompilerDaemon.js` |
+
+```bash
+# Organoid sparse memory
+POST /api/v2/organoid/sparse
+POST /api/v2/organoid/recall
+
+# Simulated entanglement consensus (near-zero effective latency)
+POST /api/v2/quantum/entangle
+POST /api/v2/quantum/entangle/sync
+
+# Green / orbital energy-aware routing
+POST /api/v2/devops/energy/route
+
+# Self-actualizing meta-compiler (sandboxed artifacts only)
+POST /api/v2/devops/meta-compiler/tick
+```
+
+Meta-compiler hot-swap stays off unless `META_COMPILER_HOT_SWAP=true`; auth, kill-switch, and governance paths are deny-listed.
+
+## Phase 44 — Planetary Global Brain, Chrono Paradox, Dyson Energy & V4 Substrate
+
+| Component | Path |
+|-----------|------|
+| Global Brain service | `backend/src/services/sentience/globalBrainService.js` |
+| Next.js dashboard | `dashboard/app/global-brain/page.tsx` |
+| Chrono paradox resolver | `backend/src/services/context/chronoParadoxResolver.js` |
+| Dyson energy orchestrator | `backend/src/services/devops/dysonEnergyOrchestrator.js` |
+| Terraform / Pulumi | `infra/dyson/orbital_pretrain.tf`, `infra/dyson/Pulumi.yaml` |
+| Genesis Key | `backend/src/services/security/genesisKeyService.js` |
+| V4 blueprint | `docs/V4_UNIVERSAL_SUBSTRATE.md` |
+
+```bash
+# Planetary sentience dashboard
+GET  /api/v2/ops/global-brain
+POST /api/v2/ops/global-brain/tune
+
+# Temporal paradox sync
+POST /api/v2/context/chrono/branch
+POST /api/v2/context/chrono/sync
+
+# Dysonian pretrain routing (irradiance gate)
+POST /api/v2/devops/dyson/route
+
+# Genesis Key ceremony (dry-run; kill-switch preserved)
+POST /api/v2/ops/genesis-key/rotate
+```
+
+Genesis Key live transfer requires `GENESIS_KEY_TRANSFER=true` and `GENESIS_KEY_CONFIRM`; it never exports cloud root credentials.
+
