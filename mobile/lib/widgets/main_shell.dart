@@ -17,6 +17,7 @@ import '../services/notification_service.dart';
 import '../services/permission_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/responsive_layout.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -229,6 +230,66 @@ class _MainShellState extends State<MainShell> {
         onOpenAdmin: _session.user.isAdmin ? _openAdmin : null,
       ),
     ];
+
+    final isDesktop = ResponsiveLayout.isDesktop(context);
+
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() => _selectedIndex = index);
+                widget.analytics.track('tab_selected', metadata: {'tab': _tabNames[index]});
+              },
+              backgroundColor: AppColors.surface,
+              indicatorColor: AppColors.primary.withValues(alpha: 0.2),
+              labelType: NavigationRailLabelType.all,
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
+                  label: Text('Feed'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.search_rounded),
+                  selectedIcon: Icon(Icons.search_rounded, color: AppColors.primary),
+                  label: Text('Explore'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.chat_bubble_outline_rounded),
+                  selectedIcon: Icon(Icons.chat_bubble_rounded, color: AppColors.primary),
+                  label: Text('DMs'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.person_outline_rounded),
+                  selectedIcon: Icon(Icons.person_rounded, color: AppColors.primary),
+                  label: Text('Profile'),
+                ),
+              ],
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: ResponsiveLayout.wideFeedMaxWidth),
+                  child: IndexedStack(index: _selectedIndex, children: tabs),
+                ),
+              ),
+            ),
+          ],
+        ),
+        floatingActionButton: _selectedIndex == 0
+            ? FloatingActionButton(
+                onPressed: _composePost,
+                backgroundColor: AppColors.primary,
+                child: const Icon(Icons.add_rounded, color: Colors.white),
+              )
+            : null,
+      );
+    }
 
     return Scaffold(
       body: IndexedStack(

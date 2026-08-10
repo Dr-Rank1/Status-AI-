@@ -55,6 +55,10 @@ export function initSocket(httpServer) {
       if (groupId) socket.join(`group:${groupId}`);
     });
 
+    socket.on('join_live', (sessionId) => {
+      if (sessionId) socket.join(`live:${sessionId}`);
+    });
+
     socket.emit('connected', { userId: socket.user.id });
 
     socket.on('disconnect', () => {
@@ -103,4 +107,19 @@ export function emitGroupMessage(groupId, payload) {
 export function emitNarrativeEvent(event) {
   if (!io) return;
   io.to('feed').emit('narrative_event', event);
+}
+
+export function emitLiveChat(sessionId, payload) {
+  if (!io) return;
+  io.to(`live:${sessionId}`).emit('live_chat', payload);
+}
+
+export function emitLiveTtsChunk(sessionId, payload) {
+  if (!io) return;
+  io.to(`live:${sessionId}`).emit('live_tts_chunk', payload);
+}
+
+export function emitLiveAiSpeaking(sessionId, payload) {
+  if (!io) return;
+  io.to(`live:${sessionId}`).emit('live_ai_speaking', payload);
 }

@@ -13,6 +13,7 @@ import { logEvent } from './analyticsService.js';
 import { rewardCreatorOnInteraction } from './creatorRewardService.js';
 import { generateGroupReply } from './aiService.js';
 import { buildGroupContext } from './groupChatService.js';
+import { storeInteractionMemory } from './vectorMemoryService.js';
 
 const pendingThreads = new Set();
 const pendingGroups = new Set();
@@ -67,6 +68,7 @@ export async function queueDmAiReply({ user, characterId, threadId, userMessageC
           characterName: aiResult.character?.name,
           message: aiMessage,
           aiPending: false,
+          toolResults: aiResult.toolResults ?? [],
         });
 
         await logEvent({
@@ -87,6 +89,16 @@ export async function queueDmAiReply({ user, characterId, threadId, userMessageC
         characterId,
         userMessage: userMessageContent,
         interactionType: 'dm',
+      });
+
+      await storeInteractionMemory({
+        userId: user.id,
+        characterId,
+        threadId,
+        userMessage: userMessageContent,
+        aiMessage: aiResult?.content,
+        interactionType: 'dm',
+        sentiment: interaction.sentiment,
       });
 
       const { rows: userRows } = await query(
@@ -174,6 +186,15 @@ export async function queuePostAiReply({
         characterId,
         userMessage: userReplyContent,
         interactionType: 'post_reply',
+      });
+
+      await storeInteractionMemory({
+        userId: user.id,
+        characterId,
+        userMessage: userReplyContent,
+        aiMessage: aiResult?.content,
+        interactionType: 'post_reply',
+        sentiment: interaction.sentiment,
       });
 
       emitReputationChange(user.id, {

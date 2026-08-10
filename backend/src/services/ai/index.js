@@ -4,6 +4,7 @@ import { generateOpenAIReply } from './openaiProvider.js';
 import { generateAnthropicReply } from './anthropicProvider.js';
 import { generateGeminiReply } from './geminiProvider.js';
 import { enrichArgsWithRouting, selectProvider } from './router.js';
+import { shouldUseAgentWorkflow, runAgentWorkflow } from './agentWorkflowService.js';
 import { logger } from '../../utils/logger.js';
 
 async function callRoutedProvider(args) {
@@ -42,6 +43,10 @@ async function callLegacyProvider(args) {
 
 export async function generateCharacterReply(args) {
   try {
+    if (shouldUseAgentWorkflow(args.mode)) {
+      return await runAgentWorkflow(args);
+    }
+
     if (AI_PROVIDER === 'auto' || AI_PROVIDER === 'router') {
       return await callRoutedProvider(args);
     }

@@ -3,6 +3,7 @@ export const ENERGY_COSTS = {
   reply: 5,
   like: 1,
   dm: 8,
+  super_chat: parseInt(process.env.SUPER_CHAT_ENERGY_COST ?? '25', 10),
 };
 
 async function exec(client, text, params) {

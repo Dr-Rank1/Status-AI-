@@ -155,6 +155,7 @@ export async function listExploreCharacters(userId) {
        c.bio,
        c.fandom,
        c.follower_count,
+       c.model_3d_url,
        COALESCE(r.affinity, 0) AS affinity,
        COALESCE(r.is_following, FALSE) AS is_following,
        t.id AS thread_id

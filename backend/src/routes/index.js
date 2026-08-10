@@ -15,6 +15,7 @@ import * as upload from '../controllers/uploadController.js';
 import * as admin from '../controllers/adminController.js';
 import * as analytics from '../controllers/analyticsController.js';
 import * as groups from '../controllers/groupsController.js';
+import * as live from '../controllers/liveStreamController.js';
 import * as voice from '../controllers/voiceController.js';
 
 const router = Router();
@@ -79,6 +80,13 @@ router.get('/energy', asyncHandler(energy.getMyEnergyState));
 router.post('/energy/refill', asyncHandler(energy.refillEnergy));
 
 router.post('/analytics/events', asyncHandler(analytics.ingestClientEvents));
+
+router.get('/live/sessions', asyncHandler(live.listSessions));
+router.post('/live/sessions', asyncHandler(live.createSession));
+router.get('/live/sessions/:sessionId', asyncHandler(live.getSession));
+router.post('/live/sessions/:sessionId/chat', asyncHandler(live.sendChat));
+router.post('/live/sessions/:sessionId/super-chat', asyncHandler(live.sendSuperChat));
+router.delete('/live/sessions/:sessionId', asyncHandler(live.endSession));
 
 // Admin routes
 router.get('/admin/characters', adminMiddleware, asyncHandler(admin.listAllCharacters));

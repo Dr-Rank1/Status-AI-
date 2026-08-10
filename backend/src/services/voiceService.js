@@ -86,3 +86,53 @@ export async function synthesizeSpeech(text, { voice } = {}) {
 
   return null;
 }
+
+export async function synthesizeSpeechPcm16(text, { voice } = {}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const trimmed = text?.trim();
+  if (!trimmed) return null;
+
+  if (apiKey) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: process.env.TTS_MODEL ?? 'tts-1',
+          input: trimmed.slice(0, 500),
+          voice: voice ?? process.env.TTS_VOICE ?? 'nova',
+          response_format: 'pcm',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS PCM error ${response.status}`);
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return {
+        audio: buffer,
+        contentType: 'audio/pcm',
+        sampleRate: 24000,
+        provider: 'openai-tts-pcm',
+      };
+    } catch (err) {
+      logger.warn('[Voice] PCM TTS failed:', err.message);
+    }
+  }
+
+  const sampleRate = 16000;
+  const durationSec = Math.min(trimmed.length * 0.06, 8);
+  const samples = Math.floor(sampleRate * durationSec);
+  const buffer = Buffer.alloc(samples * 2);
+  for (let i = 0; i < samples; i++) {
+    const t = i / sampleRate;
+    const sample = Math.sin(2 * Math.PI * 440 * t) * 0.15;
+    buffer.writeInt16LE(Math.floor(sample * 32767), i * 2);
+  }
+
+  return { audio: buffer, contentType: 'audio/pcm', sampleRate, provider: 'mock-pcm' };
+}

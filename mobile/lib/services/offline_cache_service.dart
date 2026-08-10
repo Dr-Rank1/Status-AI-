@@ -80,6 +80,20 @@ class OfflineCacheService {
     }
   }
 
+  static Post? findCachedPost(String postId) {
+    final feed = loadFeed();
+    if (feed == null) return null;
+    for (final post in feed) {
+      if (post.id == postId) return post;
+    }
+    return null;
+  }
+
+  static Future<void> appendThreadMessage(String threadId, DmMessage message) async {
+    final existing = loadThreadMessages(threadId) ?? [];
+    await cacheThreadMessages(threadId, [...existing, message]);
+  }
+
   static Map<String, dynamic> _postToJson(Post p) => {
         'id': p.id,
         'content': p.content,

@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../services/offline_cache_service.dart';
 import '../../services/realtime_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/responsive_layout.dart';
 import '../../widgets/async_state.dart';
 import 'widgets/energy_bar.dart';
 import 'widgets/feed_header.dart';
@@ -164,35 +165,39 @@ class FeedScreenState extends State<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          FeedHeader(
-            displayName: widget.session.user.displayName,
-            reputation: widget.session.user.reputation,
-            followerCount: widget.session.user.followerCount,
-          ),
-          EnergyBar(
-            remaining: _energy.remaining,
-            max: _energy.max,
-            onTap: widget.onOpenStore,
-          ),
-          if (_offline)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.surfaceElevated,
-              child: Text(
-                'Offline — showing cached feed',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.textMuted),
-                textAlign: TextAlign.center,
-              ),
+    return ResponsiveContent(
+      maxWidth: ResponsiveLayout.isWide(context)
+          ? ResponsiveLayout.wideFeedMaxWidth
+          : ResponsiveLayout.contentMaxWidth,
+      padding: EdgeInsets.zero,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FeedHeader(
+              displayName: widget.session.user.displayName,
+              reputation: widget.session.user.reputation,
+              followerCount: widget.session.user.followerCount,
             ),
-          Expanded(
-            child: _buildBody(),
-          ),
-        ],
+            EnergyBar(
+              remaining: _energy.remaining,
+              max: _energy.max,
+              onTap: widget.onOpenStore,
+            ),
+            if (_offline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: AppColors.surfaceElevated,
+                child: Text(
+                  'Offline — showing cached feed',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.textMuted),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            Expanded(child: _buildBody()),
+          ],
+        ),
       ),
     );
   }
@@ -221,22 +226,37 @@ class FeedScreenState extends State<FeedScreen> {
       );
     }
 
+    final useGrid = ResponsiveLayout.isWide(context);
+
     return RefreshIndicator(
       onRefresh: refresh,
       color: AppColors.primary,
       backgroundColor: AppColors.surface,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: posts.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final post = posts[index];
-          return PostCard(
-            post: post,
-            onReply: () => _handleReply(post),
-          );
-        },
-      ),
+      child: useGrid
+          ? GridView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.6,
+              ),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                return PostCard(post: post, onReply: () => _handleReply(post));
+              },
+            )
+          : ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: posts.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                return PostCard(post: post, onReply: () => _handleReply(post));
+              },
+            ),
     );
   }
 }

@@ -21,6 +21,28 @@ flutter run \
   --dart-define=SOCKET_URL=http://10.0.2.2:3000
 ```
 
+## Web & macOS (Phase 11)
+
+Enable desktop/web targets:
+
+```bash
+flutter config --enable-web
+flutter create . --platforms=web,macos
+flutter pub get
+
+# Web
+flutter run -d chrome
+
+# macOS (transparent 3D viewer window configured in macos/Runner/)
+flutter run -d macos
+```
+
+Desktop layout uses a `NavigationRail` (≥900px width) and a two-column feed grid on wide screens.
+
+## 3D character avatars
+
+Explore and Profile screens use `flutter_3d_controller` via `lib/widgets/character_3d_viewer.dart`. Characters may supply `model_3d_url` from the API; otherwise default GLB URLs are used.
+
 ## Permissions (after `flutter create`)
 
 **Android** — add to `android/app/src/main/AndroidManifest.xml`:
