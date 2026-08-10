@@ -6,7 +6,12 @@ import { shouldUseAgentWorkflow } from '../src/services/ai/agentWorkflowService.
 test('agent tool definitions include calendar, search, and link tools', () => {
   const tools = getOpenAiToolDefinitions();
   const names = tools.map((t) => t.function.name);
-  assert.deepEqual(names, ['create_calendar_event', 'web_search', 'generate_external_link']);
+  assert.deepEqual(names, [
+    'create_calendar_event',
+    'web_search',
+    'generate_external_link',
+    'run_sandboxed_script',
+  ]);
 });
 
 test('create_calendar_event returns ICS-backed event payload', async () => {

@@ -5,6 +5,7 @@ import { generateAnthropicReply } from './anthropicProvider.js';
 import { generateGeminiReply } from './geminiProvider.js';
 import { generateVllmReply } from './vllmProvider.js';
 import { enrichArgsWithRouting, selectProvider } from './router.js';
+import { selectProviderCostAware, recordEstimatedSpend } from '../aiCostOptimizer.js';
 import { shouldUseAgentWorkflow, runAgentWorkflow } from './agentWorkflowService.js';
 import { shouldUseMultiAgent, runMultiAgentCoordinator } from './multiAgentCoordinator.js';
 import { resolveRoutingWithFlags } from './flagRouting.js';
@@ -89,7 +90,18 @@ async function invokeProvider(provider, args) {
 }
 
 async function callRoutedProvider(args) {
-  const enriched = enrichArgsWithRouting(args);
+  const baseEnriched = enrichArgsWithRouting(args);
+  const costRoute = selectProviderCostAware({
+    mode: args.mode,
+    context: { ...args.context, incomingLength: args.incomingMessage?.length ?? 0 },
+  });
+  const enriched = {
+    ...baseEnriched,
+    route: {
+      ...baseEnriched.route,
+      ...costRoute,
+    },
+  };
   const userId = args.user?.id;
 
   const { route, flagProperties } = await resolveRoutingWithFlags({
@@ -124,6 +136,13 @@ async function callRoutedProvider(args) {
     });
     throw err;
   }
+
+  const usage = result.usage ?? {};
+  recordEstimatedSpend({
+    provider: result.provider ?? provider,
+    promptTokens: usage.prompt_tokens ?? usage.input_tokens ?? 0,
+    completionTokens: usage.completion_tokens ?? usage.output_tokens ?? 0,
+  });
 
   recordAiTelemetry({
     userId,
@@ -190,17 +209,55 @@ async function callLegacyProvider(args) {
 
 export async function generateCharacterReply(args) {
   try {
+    let result;
     if (shouldUseAgentWorkflow(args.mode)) {
       if (shouldUseMultiAgent(args.mode)) {
-        return await runMultiAgentCoordinator(args);
+        result = await runMultiAgentCoordinator(args);
+      } else {
+        result = await runAgentWorkflow(args);
       }
-      return await runAgentWorkflow(args);
+    } else if (AI_PROVIDER === 'auto' || AI_PROVIDER === 'router') {
+      result = await callRoutedProvider(args);
+    } else {
+      result = await callLegacyProvider(args);
     }
 
-    if (AI_PROVIDER === 'auto' || AI_PROVIDER === 'router') {
-      return await callRoutedProvider(args);
+    if (process.env.AGI_REFLECTION_ENABLED !== 'false' && result?.content) {
+      try {
+        const { runReflectionLoop } = await import('../agi/reflectionLoopService.js');
+        const reflected = await runReflectionLoop({
+          draft: result,
+          character: args.character,
+          incomingMessage: args.incomingMessage ?? '',
+          context: args.context ?? {},
+        });
+        if (reflected.content && reflected.content !== result.content) {
+          result = {
+            ...result,
+            content: reflected.content,
+            reflection: {
+              iterations: reflected.iterations,
+              issues: reflected.issues,
+              chainOfThought: reflected.chainOfThought,
+            },
+          };
+        }
+
+        if (process.env.KNOWLEDGE_MESH_AUTO_PUBLISH === 'true' && args.character?.id) {
+          const { linkMemoriesToMesh } = await import('../knowledgeMesh/knowledgeMeshService.js');
+          await linkMemoriesToMesh({
+            characterId: args.character.id,
+            memoryContent: reflected.content,
+            fandom: args.character.fandom,
+            tenantId: args.user?.tenant_id,
+          }).catch(() => {});
+        }
+      } catch {
+        // reflection is best-effort
+      }
     }
-    return await callLegacyProvider(args);
+
+    return result;
   } catch (err) {
     logger.error('[AI] Provider failed, falling back to mock:', err.message);
     return generateMockReply(args);

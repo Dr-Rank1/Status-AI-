@@ -3,7 +3,7 @@ import { generateCharacterReply } from './ai/index.js';
 import { getRelationship } from './relationshipService.js';
 import { buildDmContext, buildPostReplyContext } from './contextWindowManager.js';
 import { getActiveGlobalPrompt } from './narrativeEventService.js';
-import { enrichDmContextWithVectorMemories } from './vectorMemoryService.js';
+import { contextEngine } from './context/ContextEngine.js';
 
 async function getCharacter(characterId) {
   const { rows } = await query(
@@ -40,7 +40,15 @@ export async function generatePostReply({ user, characterId, parentPost, userRep
   return { ...result, character };
 }
 
-export async function generateDmReply({ user, characterId, threadId, userMessageContent }) {
+export async function generateDmReply({
+  user,
+  characterId,
+  threadId,
+  userMessageContent,
+  affectiveContext = null,
+  bciIntent = null,
+  req = null,
+}) {
   const character = await getCharacter(characterId);
   if (!character) return null;
 
@@ -57,18 +65,18 @@ export async function generateDmReply({ user, characterId, threadId, userMessage
 
   const globalNarrative = await getActiveGlobalPrompt(character.fandom);
 
-  const enrichedContext = await enrichDmContextWithVectorMemories({
-    userId: user.id,
-    characterId,
+  const enrichedContext = await contextEngine.assembleDmContext({
+    user,
+    character,
+    threadId,
     userMessageContent,
-    context: {
-      character,
-      relationship,
-      recentMessages,
-      memorySummary,
-      globalNarrative,
-      threadId,
-    },
+    relationship,
+    recentMessages,
+    memorySummary,
+    globalNarrative,
+    affectiveContext,
+    bciIntent,
+    req,
   });
 
   const result = await generateCharacterReply({
@@ -79,7 +87,7 @@ export async function generateDmReply({ user, characterId, threadId, userMessage
     mode: 'dm',
   });
 
-  return { ...result, character };
+  return { ...result, character, ragWeights: enrichedContext.ragWeights };
 }
 
 export async function generateGroupReply({

@@ -17,6 +17,7 @@ import 'services/spatial_context_service.dart';
 import 'services/telemetry_service.dart';
 import 'theme/app_theme.dart';
 import 'services/theme_config_service.dart';
+import 'services/v2_beta_service.dart';
 import 'models/theme_config.dart';
 import 'utils/desktop_platform.dart';
 
@@ -51,6 +52,7 @@ Future<void> _bootstrapAndRun() async {
   await OfflineCacheService.init();
   await SpatialContextService.init();
   await themeConfigService.load();
+  await V2BetaService.instance.load();
 
   apiService = ApiService(tenantSlug: themeConfigService.tenantHeaderSlug);
   analyticsService = AnalyticsService(api: apiService);

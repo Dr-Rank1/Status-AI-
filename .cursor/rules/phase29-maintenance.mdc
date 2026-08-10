@@ -1,0 +1,38 @@
+---
+description: Phase 29 post-handoff maintenance & continuous operations mode
+alwaysApply: true
+---
+
+# Phase 29 — Post-Handoff Maintenance Mode
+
+The Status platform (Phases 1–28) is a **complete Golden Master v1.0.0**. Operate in long-term maintenance mode—not greenfield feature builds.
+
+## Before changing code
+
+1. Consult `OPERATIONS_RUNBOOK.md` and `API_REFERENCE.md`.
+2. Prefer runbook mitigations (flags, config, admin portal) over core rewrites.
+3. Preserve: backward-compatible APIs, multi-tenant RLS (`X-Tenant-Slug` / `app.tenant_id`), E2EE/PQ constraints, RevenueCat entitlement semantics.
+
+## Bug triage & fixes
+
+- Treat issues as production incidents; keep diffs minimal and scoped.
+- Do not break existing clients; prefer additive schema/API changes.
+- After fixes: `cd backend && npm test`; when Flutter is available, run `flutter test` and `integration_test/app_test.dart` for journey-impacting changes.
+
+## Performance & security gates (before commit)
+
+- Backend: `npm audit --audit-level=high` (and type/syntax via tests).
+- Flutter: `flutter pub outdated` / analyze when the SDK is present.
+- Keep Redis feed cache, ONNX INT8 edge path, and pgvector/HNSW search behavior intact unless the task explicitly tunes them.
+
+## Incremental enhancements
+
+- Character personality / tone → Admin Portal (`dashboard/`) or `PATCH /tenant/admin/characters/:id/prompt`.
+- Behavior toggles → PostHog feature flags (do not hardcode kill-switches into core business logic).
+- Theme / branding → tenant theme APIs, not hardcoded Flutter colors.
+
+## Out of scope by default
+
+Large architectural rewrites or unlocking `main` branch protection without an explicit operator request.
+
+**Exception:** Explicitly requested Phase 30+ ops scaffolding (SLA telemetry, health CLI, `/api/v2` preview) is allowed when additive and V1-compatible.

@@ -7,6 +7,12 @@ echo "=== Status Security Audit ==="
 echo "Root: $ROOT"
 echo
 
+# Prefer Phase 28 universal auditor when available
+if [[ -x "$ROOT/scripts/universal_security_audit.sh" ]]; then
+  echo "Delegating to universal_security_audit.sh (Phase 28)..."
+  exec "$ROOT/scripts/universal_security_audit.sh"
+fi
+
 echo "--- Backend: npm audit ---"
 (cd "$ROOT/backend" && npm audit --audit-level=high || true)
 echo

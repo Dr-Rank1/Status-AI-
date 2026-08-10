@@ -125,6 +125,50 @@ export async function checkConnection() {
   return result.rows[0];
 }
 
+export function getPoolStats() {
+  return {
+    write: {
+      total: writePool.totalCount,
+      idle: writePool.idleCount,
+      waiting: writePool.waitingCount,
+      max: writePool.options?.max ?? null,
+    },
+    readReplicas: readPools.map(({ region, pool }) => ({
+      region,
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+      max: pool.options?.max ?? null,
+    })),
+  };
+}
+
+export async function checkHnswIndexIntegrity() {
+  const { rows: ext } = await writePool.query(
+    `SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'`,
+  );
+  const { rows: idx } = await writePool.query(
+    `SELECT indexname, indexdef
+     FROM pg_indexes
+     WHERE tablename = 'character_memories'
+       AND indexdef ILIKE '%hnsw%'`,
+  );
+  const { rows: counts } = await writePool.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM character_memories) AS memory_rows,
+       (SELECT COUNT(*)::int FROM character_memories WHERE embedding IS NOT NULL) AS embedded_rows`,
+  ).catch(() => ({ rows: [{ memory_rows: null, embedded_rows: null }] }));
+
+  return {
+    pgvectorInstalled: ext.length > 0,
+    extension: ext[0] ?? null,
+    hnswIndexes: idx,
+    hnswIndexPresent: idx.length > 0,
+    rowCounts: counts[0] ?? null,
+    healthy: ext.length > 0 && idx.length > 0,
+  };
+}
+
 export async function checkReadReplicas() {
   const checks = await Promise.all(
     readPools.map(async ({ region, pool }) => {

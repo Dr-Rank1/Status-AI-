@@ -61,33 +61,69 @@ export const AGENT_TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'run_sandboxed_script',
+      description:
+        'Execute a short pure JavaScript transform in a zero-trust ephemeral Wasm-backed sandbox. No network or filesystem.',
+      parameters: {
+        type: 'object',
+        properties: {
+          script: {
+            type: 'string',
+            description:
+              'Function body using `input`. Must return a value. Example: return { ok: true, echo: input };',
+          },
+          input: { type: 'object', description: 'JSON input frozen into the sandbox' },
+        },
+        required: ['script'],
+      },
+    },
+  },
 ];
 
 export async function executeAgentTool(toolName, args, ctx = {}) {
   logger.info(`[AgentTool] ${toolName}`, args);
 
-  let result;
-  switch (toolName) {
-    case 'create_calendar_event':
-      result = await executeCreateCalendarEvent(args, ctx);
-      break;
-    case 'web_search':
-      result = await executeWebSearch(args, ctx);
-      break;
-    case 'generate_external_link':
-      result = executeGenerateExternalLink(args, ctx);
-      break;
-    default:
-      throw new Error(`Unknown tool: ${toolName}`);
-  }
+  const { executeToolInSandbox } = await import('../wasm/wasmToolSandbox.js');
 
-  await logEvent({
-    userId: ctx.userId,
-    eventType: 'agent_tool_executed',
-    metadata: { toolName, characterId: ctx.characterId, args, resultSummary: summarize(result) },
-  }).catch(() => {});
+  return executeToolInSandbox(toolName, args, async () => {
+    let result;
+    switch (toolName) {
+      case 'create_calendar_event':
+        result = await executeCreateCalendarEvent(args, ctx);
+        break;
+      case 'web_search':
+        result = await executeWebSearch(args, ctx);
+        break;
+      case 'generate_external_link':
+        result = executeGenerateExternalLink(args, ctx);
+        break;
+      case 'run_sandboxed_script':
+        result = await executeSandboxedScript(args, ctx);
+        break;
+      default:
+        throw new Error(`Unknown tool: ${toolName}`);
+    }
 
-  return result;
+    await logEvent({
+      userId: ctx.userId,
+      eventType: 'agent_tool_executed',
+      metadata: { toolName, characterId: ctx.characterId, args, resultSummary: summarize(result) },
+    }).catch(() => {});
+
+    return result;
+  });
+}
+
+async function executeSandboxedScript(args) {
+  const { runInEphemeralSandbox } = await import('../wasm/wasmToolSandbox.js');
+  const out = await runInEphemeralSandbox({
+    script: args.script,
+    input: args.input ?? {},
+  });
+  return { success: true, sandbox: out };
 }
 
 function summarize(result) {

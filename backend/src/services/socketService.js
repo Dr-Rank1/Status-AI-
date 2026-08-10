@@ -79,6 +79,27 @@ export function initSocket(httpServer) {
       io.to(`metaverse:${syncToken}`).emit('metaverse_personality_sync', patch);
     });
 
+    // Phase 31 — GraphQL-style subscriptions over Socket.IO
+    socket.on('v2_graphql_subscribe', async (payload = {}) => {
+      const channel = payload.channel ?? 'slaUpdated';
+      socket.join(`v2:gql:${channel}`);
+      socket.emit('v2_graphql_subscribed', { channel, transport: 'socket.io' });
+
+      if (channel === 'slaUpdated') {
+        try {
+          const { getSlaSnapshot } = await import('../observability/slaTelemetry.js');
+          socket.emit('v2_graphql_data', { channel, data: { slaUpdated: getSlaSnapshot() } });
+        } catch {
+          // ignore
+        }
+      }
+    });
+
+    socket.on('v2_graphql_unsubscribe', (payload = {}) => {
+      const channel = payload.channel ?? 'slaUpdated';
+      socket.leave(`v2:gql:${channel}`);
+    });
+
     socket.emit('connected', { userId: socket.user.id });
 
     socket.on('disconnect', () => {

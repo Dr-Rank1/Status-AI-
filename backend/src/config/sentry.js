@@ -8,7 +8,7 @@ export function initSentry() {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV ?? 'development',
-    release: process.env.SENTRY_RELEASE ?? 'status-backend@0.1.0',
+    release: process.env.SENTRY_RELEASE ?? 'status-backend@1.0.0',
     tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
     sendDefaultPii: false,
     integrations: [expressIntegration()],
