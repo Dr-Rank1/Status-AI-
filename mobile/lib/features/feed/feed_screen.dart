@@ -249,6 +249,7 @@ class FeedScreenState extends State<FeedScreen> {
               },
             )
           : ListView.separated(
+              key: const Key('e2e_feed_list'),
               physics: const AlwaysScrollableScrollPhysics(),
               itemCount: posts.length,
               separatorBuilder: (_, __) => const Divider(height: 1),

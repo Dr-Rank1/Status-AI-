@@ -1,0 +1,30 @@
+[Unit]
+Description=Status API — Node.js backend for the social simulation app
+Documentation=https://github.com/status-app/status
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=status
+Group=status
+WorkingDirectory=/opt/status/backend
+Environment=NODE_ENV=production
+EnvironmentFile=-/opt/status/backend/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logs appear in journalctl -u status-backend
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=status-backend
+
+# Hardening (adjust if your deployment needs broader access)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

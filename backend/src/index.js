@@ -1,6 +1,5 @@
 import http from 'http';
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRouter from './routes/index.js';
 import { checkConnection } from './config/database.js';
@@ -11,6 +10,10 @@ import { UPLOAD_DIR } from './config/upload.js';
 import { initSocket } from './services/socketService.js';
 import { connectRedis } from './config/redis.js';
 import { logger } from './utils/logger.js';
+import { metricsMiddleware, metricsHandler } from './observability/metrics.js';
+import { securityHeaders } from './middleware/security.js';
+import { corsMiddleware } from './middleware/cors.js';
+import { sanitizeBody } from './middleware/validate.js';
 
 dotenv.config();
 
@@ -18,8 +21,12 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT ?? 3000;
 
-app.use(cors());
-app.use(express.json());
+app.set('trust proxy', 1);
+app.use(securityHeaders());
+app.use(corsMiddleware());
+app.use(express.json({ limit: '1mb' }));
+app.use(sanitizeBody);
+app.use(metricsMiddleware);
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.get('/', (_req, res) => {
@@ -27,9 +34,12 @@ app.get('/', (_req, res) => {
     name: 'Status API',
     version: '0.3.0',
     docs: '/api/v1/health',
+    metrics: '/metrics',
     websocket: '/socket.io',
   });
 });
+
+app.get('/metrics', metricsHandler);
 
 app.use('/api/v1', apiRouter);
 

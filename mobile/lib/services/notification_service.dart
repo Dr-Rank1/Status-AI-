@@ -1,17 +1,32 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../utils/desktop_platform.dart';
+import 'linux_notification_service.dart';
+
 class NotificationService {
-  NotificationService({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  NotificationService({
+    FlutterLocalNotificationsPlugin? plugin,
+    LinuxNotificationService? linux,
+  })  : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+        _linux = linux ?? LinuxNotificationService();
 
   final FlutterLocalNotificationsPlugin _plugin;
+  final LinuxNotificationService _linux;
   bool _initialized = false;
 
   static const _channelId = 'status_events';
   static const _channelName = 'Status Events';
 
+  bool get _useLinuxDBus => isLinuxDesktop;
+
   Future<void> init() async {
     if (_initialized) return;
+
+    if (_useLinuxDBus) {
+      await _linux.init();
+      _initialized = true;
+      return;
+    }
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const ios = DarwinInitializationSettings(
@@ -46,6 +61,15 @@ class NotificationService {
   }) async {
     if (!_initialized) return;
 
+    if (_useLinuxDBus) {
+      await _linux.showDmNotification(
+        characterName: characterName,
+        preview: preview,
+        threadId: threadId,
+      );
+      return;
+    }
+
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         _channelId,
@@ -71,6 +95,14 @@ class NotificationService {
   }) async {
     if (!_initialized) return;
 
+    if (_useLinuxDBus) {
+      await _linux.showEnergyRechargedNotification(
+        remaining: remaining,
+        max: max,
+      );
+      return;
+    }
+
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         _channelId,
@@ -88,5 +120,12 @@ class NotificationService {
       'You have $remaining / $max energy ready to use.',
       details,
     );
+  }
+
+  Future<void> dispose() async {
+    if (_useLinuxDBus) {
+      await _linux.dispose();
+    }
+    _initialized = false;
   }
 }

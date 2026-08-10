@@ -66,6 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 TextFormField(
+                  key: const Key('e2e_register_display_name'),
                   controller: _displayNameController,
                   decoration: const InputDecoration(
                     labelText: 'Display name',
@@ -77,6 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  key: const Key('e2e_register_username'),
                   controller: _usernameController,
                   decoration: const InputDecoration(
                     labelText: 'Username',
@@ -88,6 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  key: const Key('e2e_register_email'),
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
@@ -100,6 +103,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  key: const Key('e2e_register_password'),
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(
@@ -112,6 +116,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
+                  key: const Key('e2e_register_submit'),
                   onPressed: _loading ? null : _register,
                   child: _loading
                       ? const SizedBox(

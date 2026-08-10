@@ -18,6 +18,7 @@ class EnergyBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      key: const Key('e2e_energy_bar'),
       onTap: onTap,
       child: TweenAnimationBuilder<double>(
         key: ValueKey(remaining),

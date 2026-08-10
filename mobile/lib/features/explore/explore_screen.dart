@@ -14,6 +14,7 @@ import '../characters/character_creator_screen.dart';
 import '../live/live_hub_screen.dart';
 import '../live/live_video_screen.dart';
 import '../messages/chat_screen.dart';
+import '../spatial/spatial_scene_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({
@@ -168,6 +169,17 @@ class ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  Future<void> _openSpatial(AiCharacter character) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SpatialSceneScreen(
+          api: widget.api,
+          character: character,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openCreator() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -293,6 +305,7 @@ class ExploreScreenState extends State<ExploreScreen> {
                                 onFollow: () => _toggleFollow(character),
                                 onMessage: () => _messageCharacter(character),
                                 onGoLive: () => _goLive(character),
+                                onSpatial: () => _openSpatial(character),
                               ),
                             ),
                             ],
@@ -319,12 +332,14 @@ class _CharacterCard extends StatelessWidget {
     required this.onFollow,
     required this.onMessage,
     required this.onGoLive,
+    required this.onSpatial,
   });
 
   final AiCharacter character;
   final VoidCallback onFollow;
   final VoidCallback onMessage;
   final VoidCallback onGoLive;
+  final VoidCallback onSpatial;
 
   @override
   Widget build(BuildContext context) {
@@ -433,6 +448,15 @@ class _CharacterCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onSpatial,
+                icon: const Icon(Icons.view_in_ar_rounded, size: 18),
+                label: const Text('Spatial Scene'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -454,6 +478,7 @@ class _CharacterCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
+                    key: Key('e2e_character_message_${character.id}'),
                     onPressed: onMessage,
                     icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
                     label: const Text('Message'),

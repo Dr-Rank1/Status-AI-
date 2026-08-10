@@ -2,14 +2,16 @@ import { Server } from 'socket.io';
 import { query } from '../config/database.js';
 import { verifyToken, getUserById } from './authService.js';
 import { logger } from '../utils/logger.js';
+import { getSocketCorsOrigins } from '../middleware/cors.js';
 
 let io = null;
 
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: '*',
+      origin: getSocketCorsOrigins(),
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     path: '/socket.io',
   });

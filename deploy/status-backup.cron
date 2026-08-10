@@ -1,0 +1,11 @@
+# Install daily PostgreSQL backups at 02:00 with 30-day retention.
+# Copy to /etc/cron.d/status-backup and adjust paths for your install.
+#
+#   sudo cp deploy/status-backup.cron /etc/cron.d/status-backup
+#   sudo chmod 644 /etc/cron.d/status-backup
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# m h dom mon dow user command
+0 2 * * * root ENV_FILE=/opt/status/backend/.env BACKUP_DIR=/var/backups/status/postgres /opt/status/scripts/backup.sh >> /var/log/status-backup.log 2>&1

@@ -510,6 +510,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
+                    key: const Key('e2e_chat_input'),
                     controller: _controller,
                     enabled: !_sending,
                     textInputAction: TextInputAction.send,
@@ -537,6 +538,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       )
                     : IconButton.filled(
+                        key: const Key('e2e_chat_send'),
                         onPressed: _send,
                         icon: const Icon(Icons.send_rounded),
                       ),
