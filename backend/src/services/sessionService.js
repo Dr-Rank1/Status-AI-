@@ -54,7 +54,7 @@ export async function resolveSessionUser(req) {
 export async function getSessionPayload(userId) {
   const { rows } = await query(
     `SELECT id, username, display_name, avatar_url, bio, reputation,
-            follower_count, following_count, created_at
+            follower_count, following_count, is_admin, created_at
      FROM users WHERE id = $1`,
     [userId]
   );

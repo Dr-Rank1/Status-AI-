@@ -1,7 +1,8 @@
 import pool, { query } from '../config/database.js';
 import { ENERGY_COSTS, spendEnergy } from '../services/energyService.js';
-import { isAiPending, consumeInteraction } from '../services/messageQueueService.js';
+import { isAiPending, consumeInteraction, queueDmAiReply } from '../services/messageQueueService.js';
 import { validationError } from '../utils/errors.js';
+import { logEvent } from '../services/analyticsService.js';
 
 export async function listThreads(req, res) {
   const userId = req.user.id;
@@ -114,6 +115,8 @@ export async function getOrCreateThread(req, res) {
   });
 }
 
+import { requireContentModeration } from '../middleware/moderation.js';
+
 export async function sendMessage(req, res) {
   const { characterId, content } = req.body;
   const userId = req.user.id;
@@ -121,6 +124,8 @@ export async function sendMessage(req, res) {
   if (!characterId || !content?.trim()) {
     throw validationError('characterId and content are required');
   }
+
+  await requireContentModeration({ userId, text: content });
 
   const characterCheck = await query(
     `SELECT id FROM ai_characters WHERE id = $1 AND is_active = TRUE`,
@@ -185,6 +190,17 @@ export async function sendMessage(req, res) {
     characterId,
     threadId,
     userMessageContent: content.trim(),
+  });
+
+  await logEvent({
+    userId,
+    eventType: 'dm_sent',
+    metadata: { threadId, characterId },
+  });
+  await logEvent({
+    userId,
+    eventType: 'energy_spent',
+    metadata: { action: 'dm', spent: energyResult.spent },
   });
 
   res.status(201).json({

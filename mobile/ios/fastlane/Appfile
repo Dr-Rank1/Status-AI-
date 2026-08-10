@@ -1,0 +1,6 @@
+# Fastlane configuration — https://docs.fastlane.tools
+
+app_identifier("com.status.status")
+apple_id(ENV["APPLE_ID"])
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"])
+team_id(ENV["DEVELOPER_PORTAL_TEAM_ID"])

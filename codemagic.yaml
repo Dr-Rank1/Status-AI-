@@ -1,0 +1,51 @@
+workflows:
+  status-release:
+    name: Status Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Install backend dependencies & test
+        script: |
+          cd backend && npm ci && npm test
+      - name: Flutter setup & test
+        script: |
+          cd mobile
+          flutter pub get
+          flutter analyze --no-fatal-infos
+          flutter test
+      - name: Auto-increment build number
+        script: |
+          cd mobile
+          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          sed -i.bak "s/^version: .*/version: 1.0.0+${BUILD_NUMBER}/" pubspec.yaml
+      - name: Build Android App Bundle
+        script: |
+          cd mobile
+          cp .env.example .env
+          flutter build appbundle --release \
+            --obfuscate \
+            --split-debug-info=build/app/outputs/symbols \
+            --dart-define=API_BASE_URL=${API_BASE_URL} \
+            --dart-define=SOCKET_URL=${SOCKET_URL}
+    artifacts:
+      - mobile/build/app/outputs/bundle/release/app-release.aab
+      - mobile/build/app/outputs/symbols/**/*
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true

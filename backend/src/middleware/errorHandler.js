@@ -18,6 +18,7 @@ export function errorHandler(err, req, res, _next) {
   res.status(status).json({
     error: err.code ?? err.name ?? 'Internal Server Error',
     message: err.message ?? 'Something went wrong',
+    ...(err.categories && { categories: err.categories }),
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 }

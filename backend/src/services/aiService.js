@@ -1,6 +1,8 @@
 import { query } from '../config/database.js';
 import { generateCharacterReply } from './ai/index.js';
 import { getRelationship } from './relationshipService.js';
+import { buildDmContext, buildPostReplyContext } from './contextWindowManager.js';
+import { getActiveGlobalPrompt } from './narrativeEventService.js';
 
 async function getCharacter(characterId) {
   const { rows } = await query(
@@ -17,11 +19,19 @@ export async function generatePostReply({ user, characterId, parentPost, userRep
   if (!character) return null;
 
   const relationship = await getRelationship(user.id, characterId);
+  const userLabel = user.display_name ?? user.username ?? 'Someone';
+
+  const { memorySummary, recentInteractions } = await buildPostReplyContext({
+    userId: user.id,
+    characterId,
+    userLabel,
+    characterName: character.name,
+  });
 
   const result = await generateCharacterReply({
     character,
     user,
-    context: { character, relationship, parentPost },
+    context: { character, relationship, parentPost, memorySummary, recentInteractions },
     incomingMessage: userReplyContent,
     mode: 'post_reply',
   });
@@ -34,15 +44,17 @@ export async function generateDmReply({ user, characterId, threadId, userMessage
   if (!character) return null;
 
   const relationship = await getRelationship(user.id, characterId);
+  const userLabel = user.display_name ?? user.username ?? 'Someone';
 
-  const { rows: recentMessages } = await query(
-    `SELECT sender_type, content, created_at
-     FROM dm_messages
-     WHERE thread_id = $1
-     ORDER BY created_at DESC
-     LIMIT 12`,
-    [threadId]
-  );
+  const { recentMessages, memorySummary } = await buildDmContext({
+    userId: user.id,
+    characterId,
+    threadId,
+    userLabel,
+    characterName: character.name,
+  });
+
+  const globalNarrative = await getActiveGlobalPrompt(character.fandom);
 
   const result = await generateCharacterReply({
     character,
@@ -50,10 +62,39 @@ export async function generateDmReply({ user, characterId, threadId, userMessage
     context: {
       character,
       relationship,
-      recentMessages: recentMessages.reverse(),
+      recentMessages,
+      memorySummary,
+      globalNarrative,
     },
     incomingMessage: userMessageContent,
     mode: 'dm',
+  });
+
+  return { ...result, character };
+}
+
+export async function generateGroupReply({
+  user,
+  character,
+  groupId,
+  userMessageContent,
+  recentMessages,
+}) {
+  const relationship = await getRelationship(user.id, character.id);
+  const globalNarrative = await getActiveGlobalPrompt(character.fandom);
+
+  const result = await generateCharacterReply({
+    character,
+    user,
+    context: {
+      character,
+      relationship,
+      recentMessages: recentMessages ?? [],
+      globalNarrative,
+      groupId,
+    },
+    incomingMessage: userMessageContent,
+    mode: 'group_dm',
   });
 
   return { ...result, character };

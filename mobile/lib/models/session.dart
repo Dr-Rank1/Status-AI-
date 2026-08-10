@@ -28,6 +28,7 @@ class SessionUser {
     this.reputation = 0,
     this.followerCount = 0,
     this.followingCount = 0,
+    this.isAdmin = false,
   });
 
   final String id;
@@ -38,11 +39,13 @@ class SessionUser {
   final int reputation;
   final int followerCount;
   final int followingCount;
+  final bool isAdmin;
 
   SessionUser copyWith({
     int? reputation,
     int? followerCount,
     int? followingCount,
+    bool? isAdmin,
   }) {
     return SessionUser(
       id: id,
@@ -53,6 +56,7 @@ class SessionUser {
       reputation: reputation ?? this.reputation,
       followerCount: followerCount ?? this.followerCount,
       followingCount: followingCount ?? this.followingCount,
+      isAdmin: isAdmin ?? this.isAdmin,
     );
   }
 
@@ -66,6 +70,7 @@ class SessionUser {
       reputation: json['reputation'] as int? ?? 0,
       followerCount: json['follower_count'] as int? ?? 0,
       followingCount: json['following_count'] as int? ?? 0,
+      isAdmin: json['is_admin'] as bool? ?? false,
     );
   }
 }

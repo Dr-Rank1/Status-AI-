@@ -1,4 +1,5 @@
 import { buildSystemPrompt, buildUserPrompt } from './prompts.js';
+import { logger } from '../../utils/logger.js';
 
 const MOCK_POSTS = [
   'The stars align differently tonight. Pay attention.',
@@ -13,7 +14,7 @@ export async function generateAutonomousMockPost({ character, context }) {
   const idx = (Date.now() + character.name.length) % MOCK_POSTS.length;
   const content = MOCK_POSTS[idx];
 
-  console.log('[AI mock autonomous]', character.handle, content);
+  logger.info('[AI mock autonomous]', character.handle, content);
 
   return {
     content,
@@ -23,14 +24,14 @@ export async function generateAutonomousMockPost({ character, context }) {
 }
 
 export async function generateMockReply({ character, user, context, incomingMessage, mode }) {
-  if (mode === 'autonomous_post') {
+  if (mode === 'autonomous_post' || mode === 'narrative_reaction') {
     return generateAutonomousMockPost({ character, context });
   }
 
-  const system = buildSystemPrompt({ character, relationship: context.relationship, mode });
-  const userPrompt = buildUserPrompt({ user, context, incomingMessage, mode });
+  buildSystemPrompt({ character, relationship: context.relationship, mode, context });
+  buildUserPrompt({ user, context, incomingMessage, mode });
 
-  console.log('[AI mock]', { character: character.handle, mode });
+  logger.info('[AI mock]', character.handle, mode);
 
   const name = character.name.split(' ')[0];
   const snippets = [
@@ -45,6 +46,6 @@ export async function generateMockReply({ character, user, context, incomingMess
     content: snippets[idx],
     provider: 'mock',
     model: 'mock-v1',
-    usage: { promptTokens: system.length + userPrompt.length, completionTokens: 40 },
+    usage: { promptTokens: 0, completionTokens: 40 },
   };
 }

@@ -3,21 +3,25 @@ import 'package:flutter/material.dart';
 import '../../models/messaging.dart';
 import '../../models/session.dart';
 import '../../services/api_service.dart';
+import '../../services/realtime_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
+import '../characters/character_creator_screen.dart';
 import '../messages/chat_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({
     super.key,
     required this.api,
+    required this.realtime,
     required this.session,
     required this.onSessionUpdated,
   });
 
   final ApiService api;
+  final RealtimeService realtime;
   final AppSession session;
   final ValueChanged<AppSession> onSessionUpdated;
 
@@ -83,6 +87,7 @@ class ExploreScreenState extends State<ExploreScreen> {
         MaterialPageRoute(
           builder: (_) => ChatScreen(
             api: widget.api,
+            realtime: widget.realtime,
             character: character,
             threadId: threadId,
             energyRemaining: widget.session.energy.remaining,
@@ -112,9 +117,27 @@ class ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  Future<void> _openCreator() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CharacterCreatorScreen(
+          api: widget.api,
+          onCreated: (_) => refresh(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreator,
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('Create', style: TextStyle(color: Colors.white)),
+      ),
+      body: SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -210,6 +233,7 @@ class ExploreScreenState extends State<ExploreScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

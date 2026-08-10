@@ -7,7 +7,7 @@ export async function generateAnthropicReply({ character, user, context, incomin
   }
 
   const model = process.env.ANTHROPIC_MODEL ?? 'claude-3-5-haiku-20241022';
-  const system = buildSystemPrompt({ character, relationship: context.relationship, mode });
+  const system = buildSystemPrompt({ character, relationship: context.relationship, mode, context });
   const userPrompt = buildUserPrompt({ user, context, incomingMessage, mode });
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {

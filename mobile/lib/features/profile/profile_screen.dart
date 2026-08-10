@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/profile.dart';
 import '../../models/session.dart';
 import '../../services/api_service.dart';
+import '../../../main.dart' show permissionService;
 import '../../theme/app_theme.dart';
 import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
@@ -19,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onSessionUpdated,
     this.onOpenStore,
     this.onLogout,
+    this.onOpenAdmin,
   });
 
   final ApiService api;
@@ -26,6 +28,7 @@ class ProfileScreen extends StatefulWidget {
   final ValueChanged<AppSession> onSessionUpdated;
   final VoidCallback? onOpenStore;
   final VoidCallback? onLogout;
+  final VoidCallback? onOpenAdmin;
 
   @override
   State<ProfileScreen> createState() => ProfileScreenState();
@@ -37,6 +40,16 @@ class ProfileScreenState extends State<ProfileScreen> {
   bool _uploadingAvatar = false;
 
   Future<void> _changeAvatar() async {
+    final allowed = await permissionService.ensurePhotosAccess();
+    if (!allowed || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo library permission is required')),
+        );
+      }
+      return;
+    }
+
     final picked = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
     if (picked == null || !mounted) return;
 
@@ -218,6 +231,14 @@ class ProfileScreenState extends State<ProfileScreen> {
                                   label: const Text('Energy Store'),
                                 ),
                               if (widget.onOpenStore != null && widget.onLogout != null)
+                                const SizedBox(width: 12),
+                              if (widget.onOpenAdmin != null)
+                                OutlinedButton.icon(
+                                  onPressed: widget.onOpenAdmin,
+                                  icon: const Icon(Icons.admin_panel_settings_outlined, size: 18),
+                                  label: const Text('Admin'),
+                                ),
+                              if (widget.onOpenAdmin != null && widget.onLogout != null)
                                 const SizedBox(width: 12),
                               if (widget.onLogout != null)
                                 TextButton.icon(

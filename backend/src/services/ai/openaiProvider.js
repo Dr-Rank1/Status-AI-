@@ -7,7 +7,7 @@ export async function generateOpenAIReply({ character, user, context, incomingMe
   }
 
   const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-  const system = buildSystemPrompt({ character, relationship: context.relationship, mode });
+  const system = buildSystemPrompt({ character, relationship: context.relationship, mode, context });
   const userPrompt = buildUserPrompt({ user, context, incomingMessage, mode });
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
