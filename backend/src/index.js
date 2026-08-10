@@ -14,8 +14,16 @@ import { metricsMiddleware, metricsHandler } from './observability/metrics.js';
 import { securityHeaders } from './middleware/security.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { sanitizeBody } from './middleware/validate.js';
+import { initSentry, setupExpressErrorHandler } from './config/sentry.js';
+import { shutdownPostHog } from './services/posthogService.js';
+import { sentryRequestMiddleware } from './middleware/errorHandler.js';
+import { regionMiddleware } from './middleware/region.js';
+import { connectEventStream, disconnectEventStream } from './services/eventStreamService.js';
+import { logRegionStartup } from './config/region.js';
 
 dotenv.config();
+
+initSentry();
 
 const app = express();
 const server = http.createServer(app);
@@ -27,6 +35,8 @@ app.use(corsMiddleware());
 app.use(express.json({ limit: '1mb' }));
 app.use(sanitizeBody);
 app.use(metricsMiddleware);
+app.use(regionMiddleware);
+app.use(sentryRequestMiddleware());
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.get('/', (_req, res) => {
@@ -43,12 +53,24 @@ app.get('/metrics', metricsHandler);
 
 app.use('/api/v1', apiRouter);
 
+if (process.env.SENTRY_DSN) {
+  setupExpressErrorHandler(app);
+}
+
 app.use(notFound);
 app.use(errorHandler);
 
 initSocket(server);
 
 async function start() {
+  await logRegionStartup();
+
+  try {
+    await connectEventStream();
+  } catch (err) {
+    logger.warn('[EventStream] Startup skipped:', err.message);
+  }
+
   try {
     await connectRedis();
   } catch (err) {
@@ -69,6 +91,14 @@ async function start() {
     logger.info(`Status API listening on http://localhost:${PORT}`);
     logger.info(`WebSocket ready on ws://localhost:${PORT}/socket.io`);
   });
+
+  const shutdown = async () => {
+    await disconnectEventStream();
+    await shutdownPostHog();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 start();

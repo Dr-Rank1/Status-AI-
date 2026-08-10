@@ -56,7 +56,7 @@ export async function applyInteraction({
     [reputationDelta, followerDelta, userId]
   );
 
-  return {
+  const interaction = {
     affinity: rows[0]?.affinity ?? 0,
     affinityDelta: affinityBonus,
     sentiment: sentiment.label,
@@ -65,6 +65,23 @@ export async function applyInteraction({
     followerCount: userUpdate.rows[0]?.follower_count ?? 0,
     followerDelta,
   };
+
+  try {
+    const { publishReputationEvent } = await import('./eventStreamService.js');
+    await publishReputationEvent({
+      userId,
+      characterId,
+      reputation: interaction.reputation,
+      reputationDelta: interaction.reputationDelta,
+      affinity: interaction.affinity,
+      affinityDelta: interaction.affinityDelta,
+      interactionType,
+    });
+  } catch {
+    // non-fatal
+  }
+
+  return interaction;
 }
 
 export async function followCharacter(userId, characterId) {

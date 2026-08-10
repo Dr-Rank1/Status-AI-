@@ -2,11 +2,14 @@
  * Multi-LLM router — selects the most cost-effective model per task.
  *
  * Routing strategy (2026):
+ * - Self-hosted vLLM (Llama 3)     → preferred when SELF_HOSTED_AI_PREFERRED=true
  * - DM with memory / long context  → Anthropic Claude (quality)
  * - DM quick / short               → Gemini 2.5 Flash (cost)
  * - Feed posts & replies           → Gemini 2.5 Flash (speed)
  * - Image prompt synthesis         → Gemini 2.5 Flash
  */
+
+import { isVllmConfigured } from './vllmProvider.js';
 
 const COMPLEXITY = {
   dm: 'conversational',
@@ -15,9 +18,15 @@ const COMPLEXITY = {
 };
 
 export function selectProvider({ mode, context = {} }) {
+  const hasVllm = isVllmConfigured();
+  const preferSelfHosted = process.env.SELF_HOSTED_AI_PREFERRED === 'true';
   const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
   const hasGemini = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
   const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
+
+  if (hasVllm && preferSelfHosted && (mode === 'dm' || mode === 'post_reply' || mode === 'autonomous_post')) {
+    return { provider: 'vllm', reason: 'self_hosted_llama3', complexity: COMPLEXITY[mode] ?? 'medium' };
+  }
 
   const recentCount = context.recentMessages?.length ?? 0;
   const hasMemory = Boolean(context.memorySummary);

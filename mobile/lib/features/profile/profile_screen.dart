@@ -12,6 +12,8 @@ import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
 import '../../widgets/character_3d_viewer.dart';
+import '../../widgets/gated_character_3d_viewer.dart';
+import '../feedback/feedback_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -143,7 +145,7 @@ class ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          Character3DViewer(
+                          GatedCharacter3DViewer(
                             modelUrl: Character3DAssets.forCharacter(handle: user.username),
                             config: const Character3DConfig(
                               height: 200,
@@ -284,6 +286,20 @@ class ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FeedbackScreen(api: widget.api),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.feedback_outlined, size: 18),
+                        label: const Text('Send feedback'),
                       ),
                     ),
                     Padding(

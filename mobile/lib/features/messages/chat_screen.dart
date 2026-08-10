@@ -57,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _genUiLoading = false;
   bool _offlineMode = false;
   List<Map<String, dynamic>> _agentArtifacts = [];
+  bool _encryptMode = false;
 
   @override
   void initState() {
@@ -226,11 +227,11 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    final pending = DmMessage.pending(text);
+    final pending = DmMessage.pending(text, encrypted: _encryptMode);
     setState(() {
       _sending = true;
       _messages = [..._messages, pending];
-      _aiTyping = true;
+      _aiTyping = !_encryptMode;
       _offlineMode = !online;
     });
     _controller.clear();
@@ -254,6 +255,8 @@ class _ChatScreenState extends State<ChatScreen> {
           max: 100,
           resetAt: DateTime.now().add(const Duration(hours: 24)),
         ),
+        encrypt: _encryptMode,
+        threadId: _threadId,
       );
 
       if (!mounted) return;
@@ -427,6 +430,12 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => setState(() => _encryptMode = !_encryptMode),
+            icon: Icon(_encryptMode ? Icons.lock : Icons.lock_open),
+            tooltip: _encryptMode ? 'Encrypted mode on' : 'Enable encrypted mode',
+            color: _encryptMode ? AppColors.primary : null,
+          ),
+          IconButton(
             onPressed: _genUiLoading ? null : _generateGenUi,
             icon: _genUiLoading
                 ? const SizedBox(
@@ -516,7 +525,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
-                      hintText: 'Message ${widget.character.name}...',
+                      hintText: _encryptMode
+                          ? 'Encrypted message to ${widget.character.name}...'
+                          : 'Message ${widget.character.name}...',
                       filled: true,
                       fillColor: AppColors.surfaceElevated,
                       border: OutlineInputBorder(

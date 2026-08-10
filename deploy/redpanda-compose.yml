@@ -1,0 +1,37 @@
+# Redpanda (Kafka-compatible) for local/staging event streaming.
+# Merge into docker-compose or run standalone:
+#   docker compose -f docker-compose.yml -f deploy/redpanda-compose.yml up -d
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.4
+    container_name: status-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TOPIC_ENERGY: status.energy.events
+      KAFKA_TOPIC_REPUTATION: status.reputation.events
+    depends_on:
+      redpanda:
+        condition: service_healthy

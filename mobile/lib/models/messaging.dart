@@ -143,6 +143,9 @@ class DmMessage {
     required this.createdAt,
     this.isRead = false,
     this.isPending = false,
+    this.isEncrypted = false,
+    this.ciphertext,
+    this.encryptionMeta,
   });
 
   final String id;
@@ -151,6 +154,9 @@ class DmMessage {
   final DateTime createdAt;
   final bool isRead;
   final bool isPending;
+  final bool isEncrypted;
+  final String? ciphertext;
+  final Map<String, dynamic>? encryptionMeta;
 
   bool get isUser => senderType == 'user';
   bool get isCharacter => senderType == 'character';
@@ -162,16 +168,36 @@ class DmMessage {
       content: json['content'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       isRead: json['is_read'] as bool? ?? false,
+      isEncrypted: json['is_encrypted'] as bool? ?? false,
+      ciphertext: json['ciphertext'] as String?,
+      encryptionMeta: json['encryption_meta'] is Map
+          ? Map<String, dynamic>.from(json['encryption_meta'] as Map)
+          : null,
     );
   }
 
-  factory DmMessage.pending(String content) {
+  DmMessage copyWith({String? content}) {
+    return DmMessage(
+      id: id,
+      senderType: senderType,
+      content: content ?? this.content,
+      createdAt: createdAt,
+      isRead: isRead,
+      isPending: isPending,
+      isEncrypted: isEncrypted,
+      ciphertext: ciphertext,
+      encryptionMeta: encryptionMeta,
+    );
+  }
+
+  factory DmMessage.pending(String content, {bool encrypted = false}) {
     return DmMessage(
       id: 'pending-${DateTime.now().millisecondsSinceEpoch}',
       senderType: 'user',
-      content: content,
+      content: encrypted ? '🔒 Encrypted message' : content,
       createdAt: DateTime.now(),
       isPending: true,
+      isEncrypted: encrypted,
     );
   }
 }
@@ -226,6 +252,7 @@ class DmSendResult {
     this.aiPending = false,
     this.characterReply,
     this.offline = false,
+    this.queued = false,
     this.toolResults,
   });
 
@@ -235,6 +262,7 @@ class DmSendResult {
   final bool aiPending;
   final DmMessage? characterReply;
   final bool offline;
+  final bool queued;
   final List<Map<String, dynamic>>? toolResults;
 }
 

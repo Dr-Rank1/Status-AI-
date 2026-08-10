@@ -43,6 +43,12 @@ A mobile app where users create a digital persona and interact with AI-driven fi
 - **Load testing** — k6 REST + WebSocket stress scripts (Phase 16)
 - **Zero-trust API hardening** — helmet, CORS, Zod validation, auth rate limits (Phase 16)
 - **Disaster recovery** — automated pg_dump backups with 30-day retention (Phase 16)
+- **PostHog feature flags** — dynamic 3D avatars + LLM routing without redeploy (Phase 17)
+- **Sentry RUM** — crash reporting on Flutter + Node.js with user/request context (Phase 17)
+- **AI token telemetry** — Prometheus + PostHog cost/latency per LLM request (Phase 17)
+- **Circuit breakers** — LLM provider protection with cached fallback (Phase 18)
+- **Event streaming** — Kafka/Redpanda backbone for energy & reputation events (Phase 18)
+- **Offline action queue** — sqflite sync for posts/DMs during outages (Phase 18)
 
 ## Phase 12 — Live Streaming
 
@@ -154,6 +160,55 @@ k6 run -e VUS=200 loadtests/k6/websocket-load.js
 sudo cp deploy/status-backup.cron /etc/cron.d/status-backup
 ```
 
+## Phase 17 — Observability, Feature Flags & RUM
+
+| Component | Path |
+|-----------|------|
+| PostHog backend | `backend/src/services/posthogService.js` |
+| Flag-driven LLM routing | `backend/src/services/ai/flagRouting.js` |
+| AI token metrics | `backend/src/services/aiTelemetryService.js` |
+| Flag config reference | `backend/config/posthog-flags.example.json` |
+| Sentry Express | `backend/src/config/sentry.js`, `middleware/errorHandler.js` |
+| Flutter PostHog | `mobile/lib/services/feature_flag_service.dart` |
+| Flutter Sentry RUM | `mobile/lib/services/telemetry_service.dart` |
+| Gated 3D avatars | `mobile/lib/widgets/gated_character_3d_viewer.dart` |
+| In-app feedback | `mobile/lib/features/feedback/feedback_screen.dart` |
+
+Create PostHog flags (`enable-3d-avatars`, `force-gemini-dm`, etc.) per `backend/config/posthog-flags.example.json`. Set `POSTHOG_API_KEY` and `SENTRY_DSN` in both `.env` files.
+
+```bash
+# Backend AI metrics include token/cost series
+curl http://localhost:3000/metrics | rg ai_
+
+# Submit feedback (authenticated)
+POST /api/v1/feedback
+```
+
+## Phase 18 — Enterprise Resilience, Chaos & Multi-Region HA
+
+| Component | Path |
+|-----------|------|
+| Circuit breaker | `backend/src/services/circuitBreaker.js` |
+| AI response cache | `backend/src/services/ai/responseCache.js` |
+| Multi-region config | `backend/src/config/region.js` |
+| Event streaming | `backend/src/services/eventStreamService.js` |
+| Redpanda overlay | `deploy/redpanda-compose.yml` |
+| Chaos Mesh (staging) | `deploy/chaos-mesh/staging/` |
+| Flutter offline queue | `mobile/lib/services/offline_action_queue_service.dart` |
+
+```bash
+# Multi-region status
+curl http://localhost:3000/api/v1/health/region
+
+# Event backbone
+docker compose -f docker-compose.yml -f deploy/redpanda-compose.yml up -d
+
+# Chaos experiments (staging K8s)
+kubectl apply -f deploy/chaos-mesh/staging/ -n status-staging
+```
+
+LLM calls trip per-provider circuit breakers and fall back to cached/mock responses. Flutter queues posts/DMs in `sqflite` on 503 or network failure and syncs when online.
+
 See [DEPLOYMENT.md](DEPLOYMENT.md) for release checklist and required secrets.
 
 ## Quick Start
@@ -186,6 +241,7 @@ psql -d status -f backend/db/migrations/008_community_platform.sql
 psql -d status -f backend/db/migrations/009_vector_memory.sql
 psql -d status -f backend/db/migrations/010_live_streaming.sql
 psql -d status -f backend/db/migrations/011_spatial_computing.sql
+psql -d status -f backend/db/migrations/012_user_feedback.sql
 ```
 
 Fresh installs can use `backend/db/schema.sql` directly.
@@ -348,3 +404,46 @@ Status/
         ├── services/desktop_shell_service.dart
         └── features/
 ```
+
+## Phase 19 — Self-Hosted LLM, Fine-Tuning Pipeline & E2EE DMs
+
+### vLLM inference (port 8000)
+
+```bash
+export HF_TOKEN=hf_...   # for gated Llama 3 weights
+chmod +x deploy/vllm/setup-vllm.sh
+./deploy/vllm/setup-vllm.sh
+```
+
+Set in `backend/.env`:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VLLM_BASE_URL` | — | OpenAI-compatible endpoint (`http://127.0.0.1:8000/v1`) |
+| `VLLM_MODEL` | `meta-llama/Meta-Llama-3-8B-Instruct` | Served model id |
+| `SELF_HOSTED_AI_PREFERRED` | `false` | Route DMs/feed to vLLM first |
+
+### Fine-tuning JSONL export
+
+Background worker (`fine-tuning-export` cron, Sundays 03:00) extracts DM and post-reply pairs, scrubs PII, and writes Llama 3 chat JSONL to `backend/data/fine-tuning/`.
+
+Manual export:
+
+```bash
+node backend/scripts/export-fine-tuning-data.js
+```
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FINE_TUNING_EXPORT_ENABLED` | `true` | Disable scheduled export |
+| `FINE_TUNING_EXPORT_CRON` | `0 3 * * 0` | Weekly schedule |
+| `FINE_TUNING_EXPORT_LIMIT` | `5000` | Max DM pairs per run |
+
+Apply migration `013_e2ee_fine_tuning.sql` before using E2EE columns.
+
+### E2EE direct messages
+
+- Toggle **lock icon** in chat to send encrypted payloads (`POST /api/v1/messages` with `encrypted`, `ciphertext`, `encryptionMeta`).
+- Server stores ciphertext only; moderation and AI replies are skipped for encrypted messages.
+- Flutter client encrypts via `cryptography` (AES-GCM); `mobile/native/e2ee/` documents the future Olm/Megolm Rust bridge.
+- Register device keys: `POST /api/v1/e2ee/keys`.

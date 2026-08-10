@@ -8,11 +8,13 @@ import 'features/desktop/desktop_sub_window_app.dart';
 import 'services/analytics_service.dart';
 import 'services/api_service.dart';
 import 'services/desktop_shell_service.dart';
+import 'services/feature_flag_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_cache_service.dart';
 import 'services/permission_service.dart';
 import 'services/realtime_service.dart';
 import 'services/spatial_context_service.dart';
+import 'services/telemetry_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/desktop_platform.dart';
 
@@ -38,7 +40,12 @@ Future<void> main(List<String> args) async {
     }
   }
 
+  await TelemetryService.bootstrap(_bootstrapAndRun);
+}
+
+Future<void> _bootstrapAndRun() async {
   await dotenv.load(fileName: '.env', isOptional: true);
+  await FeatureFlagService.instance.init();
   await OfflineCacheService.init();
   await SpatialContextService.init();
 
@@ -76,7 +83,6 @@ void exitApp() {
   if (isDesktopPlatform) {
     DesktopShellService.instance.dispose();
   }
-  // tray_manager / window_manager handle process exit on desktop quit.
   SystemNavigator.pop();
 }
 

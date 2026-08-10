@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,8 +18,10 @@ import '../models/live_stream.dart';
 import '../models/spatial.dart';
 import 'auth_storage.dart';
 import 'local_ai_service.dart';
+import 'offline_action_queue_service.dart';
 import 'offline_cache_service.dart';
 import 'realtime_service.dart';
+import 'e2ee_service.dart';
 
 class ApiService {
   ApiService({
@@ -26,21 +29,47 @@ class ApiService {
     AuthStorage? authStorage,
     LocalAiService? localAi,
     Connectivity? connectivity,
+    OfflineActionQueueService? queue,
+    E2eeService? e2ee,
   })  : _client = client ?? http.Client(),
         _authStorage = authStorage ?? AuthStorage(),
         _localAi = localAi ?? LocalAiService(),
-        _connectivity = connectivity ?? Connectivity();
+        _connectivity = connectivity ?? Connectivity(),
+        _queue = queue ?? OfflineActionQueueService.instance,
+        _e2ee = e2ee ?? E2eeService();
 
   final http.Client _client;
   final AuthStorage _authStorage;
   final LocalAiService _localAi;
   final Connectivity _connectivity;
+  final OfflineActionQueueService _queue;
+  final E2eeService _e2ee;
   String? _token;
   EnergyState? _lastEnergy;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  bool _syncing = false;
+
+  static const _postEnergyCost = 10;
+  static const _dmEnergyCost = 8;
 
   Future<void> init() async {
     _token = await _authStorage.getToken();
     await _localAi.init();
+    await _e2ee.init();
+    await OfflineActionQueueService.init();
+
+    _connectivitySub ??= _connectivity.onConnectivityChanged.listen((_) {
+      unawaited(syncPendingActions());
+    });
+
+    await syncPendingActions();
+  }
+
+  Future<int> get pendingActionCount => _queue.pendingCount();
+
+  Future<void> dispose() async {
+    await _connectivitySub?.cancel();
+    _connectivitySub = null;
   }
 
   LocalAiService get localAi => _localAi;
@@ -257,6 +286,26 @@ class ApiService {
   }
 
   Future<ReplyResult> createPost(String content, {String fandom = 'General', String? imageUrl}) async {
+    if (!await isOnline()) {
+      return _queueCreatePost(content: content, fandom: fandom, imageUrl: imageUrl);
+    }
+
+    try {
+      return await _createPostDirect(content: content, fandom: fandom, imageUrl: imageUrl);
+    } on SocketException {
+      return _queueCreatePost(content: content, fandom: fandom, imageUrl: imageUrl);
+    } on ServiceUnavailableException {
+      return _queueCreatePost(content: content, fandom: fandom, imageUrl: imageUrl);
+    } on CircuitOpenException {
+      return _queueCreatePost(content: content, fandom: fandom, imageUrl: imageUrl);
+    }
+  }
+
+  Future<ReplyResult> _createPostDirect({
+    required String content,
+    String fandom = 'General',
+    String? imageUrl,
+  }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/posts');
     final response = await _client.post(
       uri,
@@ -273,11 +322,33 @@ class ApiService {
       throw InsufficientEnergyException(body['message'] as String? ?? 'Insufficient energy');
     }
 
+    if (_shouldQueueResponse(response)) {
+      throw ServiceUnavailableException(_errorMessage(response, 'Service unavailable'));
+    }
+
     _throwIfError(response, 'Failed to create post');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return ReplyResult(
-      energy: EnergyState.fromJson(body['energy'] as Map<String, dynamic>),
+    final energy = EnergyState.fromJson(body['energy'] as Map<String, dynamic>);
+    _lastEnergy = energy;
+    return ReplyResult(energy: energy);
+  }
+
+  Future<ReplyResult> _queueCreatePost({
+    required String content,
+    String fandom = 'General',
+    String? imageUrl,
+  }) async {
+    await _queue.enqueue(
+      type: 'post',
+      payload: {
+        'content': content,
+        'fandom': fandom,
+        if (imageUrl != null) 'imageUrl': imageUrl,
+      },
     );
+
+    final energy = _optimisticEnergySpend(_postEnergyCost);
+    return ReplyResult(energy: energy, queued: true);
   }
 
   Future<ExploreData> fetchExplore() async {
@@ -353,10 +424,52 @@ class ApiService {
     }
 
     return ThreadMessagesResult(
-      messages: data.map((e) => DmMessage.fromJson(e as Map<String, dynamic>)).toList(),
+      messages: await _decryptMessages(
+        sessionScope: meta?['characterId'] as String? ?? threadId,
+        data: data,
+      ),
       aiPending: meta?['aiPending'] as bool? ?? false,
       interaction: interaction,
     );
+  }
+
+  Future<List<DmMessage>> _decryptMessages({
+    required String sessionScope,
+    required List<dynamic> data,
+  }) async {
+    final messages = <DmMessage>[];
+    for (final raw in data) {
+      var msg = DmMessage.fromJson(raw as Map<String, dynamic>);
+      if (msg.isEncrypted && msg.ciphertext != null && msg.encryptionMeta != null) {
+        try {
+          final clear = await _e2ee.decryptFromThread(
+            threadId: sessionScope,
+            ciphertext: msg.ciphertext!,
+            encryptionMeta: msg.encryptionMeta!,
+          );
+          msg = msg.copyWith(content: clear);
+        } catch (_) {
+          msg = msg.copyWith(content: '🔒 Unable to decrypt');
+        }
+      }
+      messages.add(msg);
+    }
+    return messages;
+  }
+
+  Future<void> registerE2eeDeviceKey() async {
+    if (!await isOnline()) return;
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}/e2ee/keys');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'deviceId': await _e2ee.deviceId(),
+        'identityKeyPublic': await _e2ee.identityKeyPublic(),
+      }),
+    );
+    _throwIfError(response, 'Failed to register E2EE key');
   }
 
   Future<DmSendResult> sendMessage({
@@ -366,23 +479,92 @@ class ApiService {
     String? characterBio,
     List<String> recentLines = const [],
     EnergyState? currentEnergy,
+    bool encrypt = false,
+    String? threadId,
   }) async {
     if (!await isOnline()) {
-      return _sendMessageOffline(
+      return _queueOrOfflineDm(
         characterId: characterId,
         content: content,
         characterName: characterName ?? 'Character',
         characterBio: characterBio ?? '',
         recentLines: recentLines,
         currentEnergy: currentEnergy,
+        encrypt: encrypt,
+        threadId: threadId,
       );
     }
 
+    try {
+      return await _sendMessageDirect(
+        characterId: characterId,
+        content: content,
+        encrypt: encrypt,
+        threadId: threadId,
+      );
+    } on SocketException {
+      return _queueOrOfflineDm(
+        characterId: characterId,
+        content: content,
+        characterName: characterName ?? 'Character',
+        characterBio: characterBio ?? '',
+        recentLines: recentLines,
+        currentEnergy: currentEnergy,
+        encrypt: encrypt,
+        threadId: threadId,
+      );
+    } on ServiceUnavailableException {
+      return _queueOrOfflineDm(
+        characterId: characterId,
+        content: content,
+        characterName: characterName ?? 'Character',
+        characterBio: characterBio ?? '',
+        recentLines: recentLines,
+        currentEnergy: currentEnergy,
+        encrypt: encrypt,
+        threadId: threadId,
+      );
+    } on CircuitOpenException {
+      return _queueOrOfflineDm(
+        characterId: characterId,
+        content: content,
+        characterName: characterName ?? 'Character',
+        characterBio: characterBio ?? '',
+        recentLines: recentLines,
+        currentEnergy: currentEnergy,
+        encrypt: encrypt,
+        threadId: threadId,
+      );
+    }
+  }
+
+  Future<DmSendResult> _sendMessageDirect({
+    required String characterId,
+    required String content,
+    bool encrypt = false,
+    String? threadId,
+  }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/messages');
+    final Map<String, dynamic> payload = {'characterId': characterId};
+
+    if (encrypt) {
+      final encrypted = await _e2ee.encryptForThread(
+        threadId: characterId,
+        plaintext: content,
+      );
+      payload['encrypted'] = true;
+      payload['ciphertext'] = encrypted['ciphertext'];
+      payload['encryptionMeta'] = encrypted['encryptionMeta'];
+      payload['contentPreview'] = encrypted['contentPreview'];
+      if (threadId != null) payload['threadId'] = threadId;
+    } else {
+      payload['content'] = content;
+    }
+
     final response = await _client.post(
       uri,
       headers: await _headers(),
-      body: jsonEncode({'characterId': characterId, 'content': content}),
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode == 409) {
@@ -390,20 +572,71 @@ class ApiService {
       throw InsufficientEnergyException(body['message'] as String? ?? 'Insufficient energy');
     }
 
+    if (_shouldQueueResponse(response)) {
+      throw ServiceUnavailableException(_errorMessage(response, 'Service unavailable'));
+    }
+
     _throwIfError(response, 'Failed to send message');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-
     final energy = EnergyState.fromJson(body['energy'] as Map<String, dynamic>);
     _lastEnergy = energy;
 
+    var userMessage = DmMessage.fromJson(body['data'] as Map<String, dynamic>);
+    if (encrypt) {
+      userMessage = userMessage.copyWith(content: content);
+    }
+
     return DmSendResult(
-      userMessage: DmMessage.fromJson(body['data'] as Map<String, dynamic>),
+      userMessage: userMessage,
       energy: energy,
       threadId: body['threadId'] as String?,
       aiPending: body['aiPending'] as bool? ?? true,
       toolResults: (body['toolResults'] as List<dynamic>?)
           ?.map((e) => Map<String, dynamic>.from(e as Map))
           .toList(),
+    );
+  }
+
+  Future<DmSendResult> _queueOrOfflineDm({
+    required String characterId,
+    required String content,
+    required String characterName,
+    required String characterBio,
+    required List<String> recentLines,
+    EnergyState? currentEnergy,
+    bool encrypt = false,
+    String? threadId,
+  }) async {
+    if (encrypt) {
+      throw ApiOfflineException('Encrypted messages require an online connection');
+    }
+
+    await _queue.enqueue(
+      type: 'dm',
+      payload: {
+        'characterId': characterId,
+        'content': content,
+        'characterName': characterName,
+      },
+    );
+
+    final queuedResult = await _sendMessageOffline(
+      characterId: characterId,
+      content: content,
+      characterName: characterName,
+      characterBio: characterBio,
+      recentLines: recentLines,
+      currentEnergy: currentEnergy,
+    );
+
+    return DmSendResult(
+      userMessage: queuedResult.userMessage,
+      characterReply: queuedResult.characterReply,
+      energy: _optimisticEnergySpend(_dmEnergyCost, base: queuedResult.energy),
+      threadId: queuedResult.threadId,
+      aiPending: false,
+      offline: queuedResult.offline,
+      queued: true,
     );
   }
 
@@ -536,6 +769,26 @@ class ApiService {
     _throwIfError(response, 'Failed to log analytics');
   }
 
+  Future<void> submitFeedback({
+    required String category,
+    required String message,
+    required Map<String, dynamic> deviceState,
+    required Map<String, dynamic> featureFlags,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/feedback');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'category': category,
+        'message': message,
+        'deviceState': deviceState,
+        'featureFlags': featureFlags,
+      }),
+    );
+    _throwIfError(response, 'Failed to submit feedback');
+  }
+
   Future<String> transcribeVoice(File audioFile) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}/voice/transcribe');
     final request = http.MultipartRequest('POST', uri);
@@ -569,6 +822,19 @@ class ApiService {
     if (response.statusCode == 401) {
       throw AuthException('Session expired — please log in again');
     }
+    if (response.statusCode == 503) {
+      final code = _errorCode(response);
+      if (code == 'CIRCUIT_OPEN') {
+        throw CircuitOpenException(
+          _errorMessage(response, 'Service temporarily degraded'),
+          retryAfter: _retryAfter(response),
+        );
+      }
+      throw ServiceUnavailableException(
+        _errorMessage(response, 'Service temporarily unavailable'),
+        retryAfter: _retryAfter(response),
+      );
+    }
     if (response.statusCode == 422) {
       try {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -586,6 +852,95 @@ class ApiService {
       if (e is ApiException || e is ContentModerationException) rethrow;
       throw ApiException(message, response.statusCode);
     }
+  }
+
+  bool _shouldQueueResponse(http.Response response) {
+    if ([502, 503, 504].contains(response.statusCode)) return true;
+    final code = _errorCode(response);
+    return code == 'CIRCUIT_OPEN' || code == 'SERVICE_UNAVAILABLE';
+  }
+
+  String? _errorCode(http.Response response) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['error'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _errorMessage(http.Response response, String fallback) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['message'] as String? ?? fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  int? _retryAfter(http.Response response) {
+    final header = response.headers['retry-after'];
+    if (header != null) return int.tryParse(header);
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['retryAfter'] as int?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  EnergyState _optimisticEnergySpend(int cost, {EnergyState? base}) {
+    final current = base ?? _lastEnergy;
+    final now = DateTime.now();
+    if (current == null) {
+      return EnergyState(remaining: 100 - cost, max: 100, resetAt: now.add(const Duration(hours: 24)));
+    }
+    final remaining = (current.remaining - cost).clamp(0, current.max);
+    final updated = EnergyState(remaining: remaining, max: current.max, resetAt: current.resetAt);
+    _lastEnergy = updated;
+    return updated;
+  }
+
+  /// Replay queued posts and DMs when connectivity returns.
+  Future<int> syncPendingActions() async {
+    if (_syncing || !await isOnline()) return 0;
+    final token = await getToken();
+    if (token == null) return 0;
+
+    _syncing = true;
+    var synced = 0;
+
+    try {
+      final actions = await _queue.pending();
+      for (final action in actions) {
+        try {
+          if (action.type == 'post') {
+            await _createPostDirect(
+              content: action.payload['content'] as String,
+              fandom: action.payload['fandom'] as String? ?? 'General',
+              imageUrl: action.payload['imageUrl'] as String?,
+            );
+          } else if (action.type == 'dm') {
+            await _sendMessageDirect(
+              characterId: action.payload['characterId'] as String,
+              content: action.payload['content'] as String,
+            );
+          }
+          await _queue.remove(action.id);
+          synced += 1;
+        } catch (_) {
+          await _queue.incrementRetry(action.id);
+          if (action.retryCount >= 5) {
+            await _queue.remove(action.id);
+          }
+          break;
+        }
+      }
+    } finally {
+      _syncing = false;
+    }
+
+    return synced;
   }
 
   Future<UserCreatedCharacter> createCharacter({
@@ -877,6 +1232,22 @@ class ApiOfflineException implements Exception {
 class ContentModerationException implements Exception {
   ContentModerationException(this.message);
   final String message;
+  @override
+  String toString() => message;
+}
+
+class ServiceUnavailableException implements Exception {
+  ServiceUnavailableException(this.message, {this.retryAfter});
+  final String message;
+  final int? retryAfter;
+  @override
+  String toString() => message;
+}
+
+class CircuitOpenException implements Exception {
+  CircuitOpenException(this.message, {this.retryAfter});
+  final String message;
+  final int? retryAfter;
   @override
   String toString() => message;
 }

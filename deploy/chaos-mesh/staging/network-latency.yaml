@@ -1,0 +1,50 @@
+# Chaos Mesh experiments for Status staging (small blast radius).
+#
+# Prerequisites:
+#   helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-testing --create-namespace
+#
+# Apply to staging namespace only:
+#   kubectl apply -f deploy/chaos-mesh/staging/ -n status-staging
+#
+# Steady state: GET /api/v1/health/ready returns 200, circuit breakers fall back to cache/mock.
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: status-api-latency
+  namespace: status-staging
+  labels:
+    app: status
+    experiment: network-latency
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - status-staging
+    labelSelectors:
+      app: status-api
+  delay:
+    latency: "250ms"
+    jitter: "50ms"
+  duration: "3m"
+  # Blast radius: single pod, staging only
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: status-api-pod-kill
+  namespace: status-staging
+  labels:
+    app: status
+    experiment: pod-failure
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - status-staging
+    labelSelectors:
+      app: status-api
+  gracePeriod: 0
+  duration: "2m"
