@@ -9,6 +9,9 @@ import {
   applyCooldownRegen,
 } from '../services/energyRegenService.js';
 import { runFineTuningExportWorker } from '../workers/fineTuningExportWorker.js';
+import { runPeriodicTipSweep } from '../services/agentTipService.js';
+import { runSyntheticSimulatorWorker } from '../workers/syntheticSimulatorWorker.js';
+import { runSelfHealingCycle } from '../workers/selfHealingDaemon.js';
 import { logger } from '../utils/logger.js';
 
 const CRON_ENABLED = process.env.CRON_ENABLED !== 'false';
@@ -19,6 +22,9 @@ const ENERGY_COOLDOWN_CRON = process.env.ENERGY_COOLDOWN_CRON ?? '0 * * * *';
 
 const NARRATIVE_EVENT_CRON = process.env.NARRATIVE_EVENT_CRON ?? '0 12 * * *';
 const FINE_TUNING_EXPORT_CRON = process.env.FINE_TUNING_EXPORT_CRON ?? '0 3 * * 0';
+const AGENT_TIP_SWEEP_CRON = process.env.AGENT_TIP_SWEEP_CRON ?? '0 */6 * * *';
+const SYNTHETIC_SIM_CRON = process.env.SYNTHETIC_SIM_CRON ?? '0 2 * * *';
+const SELF_HEALING_CRON = process.env.SELF_HEALING_CRON ?? '*/5 * * * *';
 
 let jobs = [];
 
@@ -72,6 +78,22 @@ export function startScheduledJobs() {
       if (result) {
         logger.info(`[Cron] Fine-tuning export: ${result.count} records → ${result.filePath}`);
       }
+    }),
+
+    schedule('agent-tip-sweep', AGENT_TIP_SWEEP_CRON, async () => {
+      const results = await runPeriodicTipSweep();
+      logger.info(`[Cron] Agent tip sweep: ${results.length} posts tipped`);
+    }),
+
+    schedule('synthetic-simulator', SYNTHETIC_SIM_CRON, async () => {
+      const result = await runSyntheticSimulatorWorker();
+      if (result && !result.skipped) {
+        logger.info(`[Cron] Synthetic sim: interactions=${result.interactions ?? 0}`);
+      }
+    }),
+
+    schedule('self-healing-inspect', SELF_HEALING_CRON, async () => {
+      await runSelfHealingCycle();
     }),
   ].filter(Boolean);
 

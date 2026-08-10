@@ -1,0 +1,46 @@
+{
+  "$schema": "https://status.app/schemas/self-healing-daemon.v1.json",
+  "version": "1.0.0",
+  "enabled": true,
+  "inspectIntervalMs": 60000,
+  "errorWindowMinutes": 15,
+  "maxEventsPerCycle": 50,
+  "autoApplyPatches": true,
+  "sandbox": {
+    "timeoutMs": 5000,
+    "maxConcurrent": 3,
+    "requireMinPassRate": 0.8
+  },
+  "patchRules": [
+    {
+      "match": { "errorType": "PayloadShapeError", "routePattern": "/api/v1/posts" },
+      "patchType": "fallback_response",
+      "config": {
+        "status": 200,
+        "body": { "data": [], "meta": { "degraded": true, "reason": "payload_shift_fallback" } }
+      }
+    },
+    {
+      "match": { "errorType": "RuntimeError", "routePattern": "/api/v1/spatial/react" },
+      "patchType": "fallback_response",
+      "config": {
+        "status": 200,
+        "body": {
+          "data": {
+            "reply": "I'm here with you — give me a moment to reconnect.",
+            "degraded": true
+          }
+        }
+      }
+    },
+    {
+      "match": { "errorType": "RuntimeError", "routePattern": "/api/v1/messages" },
+      "patchType": "queue_retry",
+      "config": { "retryAfterSec": 30, "maxRetries": 2 }
+    }
+  ],
+  "alerting": {
+    "notifyOnPatchApplied": true,
+    "notifyOnPatchRejected": true
+  }
+}

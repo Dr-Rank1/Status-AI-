@@ -391,3 +391,120 @@ CREATE TABLE IF NOT EXISTS spatial_geofence_events (
 
 ALTER TABLE ai_characters
   ADD COLUMN IF NOT EXISTS spatial_scene_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Phase 20: Agent wallets, decentralized CIDs, ZKP nullifiers
+CREATE TABLE IF NOT EXISTS agent_wallets (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    character_id        UUID NOT NULL UNIQUE REFERENCES ai_characters (id) ON DELETE CASCADE,
+    lightning_address   VARCHAR(256),
+    token_balance       BIGINT NOT NULL DEFAULT 0 CHECK (token_balance >= 0),
+    energy_pool         INTEGER NOT NULL DEFAULT 500 CHECK (energy_pool >= 0),
+    web3_address        VARCHAR(128),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_wallet_transactions (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id           UUID NOT NULL REFERENCES agent_wallets (id) ON DELETE CASCADE,
+    character_id        UUID NOT NULL REFERENCES ai_characters (id) ON DELETE CASCADE,
+    recipient_user_id   UUID REFERENCES users (id) ON DELETE SET NULL,
+    tx_type             VARCHAR(32) NOT NULL,
+    amount              INTEGER NOT NULL,
+    currency            VARCHAR(16) NOT NULL DEFAULT 'energy',
+    reason              TEXT,
+    metadata            JSONB NOT NULL DEFAULT '{}',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS ipfs_avatar_cid TEXT,
+  ADD COLUMN IF NOT EXISTS arweave_avatar_txid TEXT;
+
+ALTER TABLE ai_characters
+  ADD COLUMN IF NOT EXISTS ipfs_avatar_cid TEXT,
+  ADD COLUMN IF NOT EXISTS ipfs_model_cid TEXT,
+  ADD COLUMN IF NOT EXISTS arweave_avatar_txid TEXT;
+
+ALTER TABLE posts
+  ADD COLUMN IF NOT EXISTS ipfs_image_cid TEXT,
+  ADD COLUMN IF NOT EXISTS arweave_image_txid TEXT;
+
+CREATE TABLE IF NOT EXISTS zkp_proof_nullifiers (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nullifier       VARCHAR(128) NOT NULL UNIQUE,
+    commitment      VARCHAR(128) NOT NULL,
+    claim_type      VARCHAR(64) NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Phase 21: Federated learning, OAuth public API, webhooks
+CREATE TABLE IF NOT EXISTS federated_rounds (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    round_number    INTEGER NOT NULL UNIQUE,
+    status          VARCHAR(32) NOT NULL DEFAULT 'open',
+    baseline_version INTEGER NOT NULL DEFAULT 1,
+    contributor_count INTEGER NOT NULL DEFAULT 0,
+    opened_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    closed_at       TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS federated_contributions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    round_id        UUID NOT NULL REFERENCES federated_rounds (id) ON DELETE CASCADE,
+    user_commitment VARCHAR(128) NOT NULL,
+    encrypted_payload TEXT NOT NULL,
+    sample_count    INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (round_id, user_commitment)
+);
+
+CREATE TABLE IF NOT EXISTS federated_global_weights (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    version         INTEGER NOT NULL UNIQUE,
+    weights         JSONB NOT NULL,
+    contributor_count INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS api_oauth_clients (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id       VARCHAR(64) NOT NULL UNIQUE,
+    client_secret_hash TEXT NOT NULL,
+    name            VARCHAR(128) NOT NULL,
+    owner_user_id   UUID REFERENCES users (id) ON DELETE SET NULL,
+    scopes          TEXT[] NOT NULL DEFAULT '{feed:read,characters:read}',
+    rate_limit_max  INTEGER NOT NULL DEFAULT 120,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS api_oauth_tokens (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id       VARCHAR(64) NOT NULL REFERENCES api_oauth_clients (client_id) ON DELETE CASCADE,
+    token_hash      VARCHAR(128) NOT NULL UNIQUE,
+    scopes          TEXT[] NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS developer_webhooks (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id       VARCHAR(64) NOT NULL REFERENCES api_oauth_clients (client_id) ON DELETE CASCADE,
+    url             TEXT NOT NULL,
+    secret_hash     TEXT NOT NULL,
+    events          TEXT[] NOT NULL DEFAULT '{narrative.event,character.status}',
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    webhook_id      UUID NOT NULL REFERENCES developer_webhooks (id) ON DELETE CASCADE,
+    event_type      VARCHAR(64) NOT NULL,
+    payload         JSONB NOT NULL,
+    status_code     INTEGER,
+    success         BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

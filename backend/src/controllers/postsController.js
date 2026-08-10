@@ -1,4 +1,6 @@
-import pool, { query } from '../config/database.js';
+import pool, { query, queryRead } from '../config/database.js';
+import { transformFeedMediaUrls } from '../config/cdn.js';
+import { readRoutingHeaders } from '../config/geoRouting.js';
 import { ENERGY_COSTS, spendEnergy } from '../services/energyService.js';
 import { queuePostAiReply } from '../services/messageQueueService.js';
 import { notFound, validationError } from '../utils/errors.js';
@@ -55,20 +57,21 @@ export async function listPosts(req, res) {
   params.push(limit, offset);
   sql += ` ORDER BY p.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
-  const { rows } = await query(sql, params);
-  const payload = { data: rows, meta: { limit, offset, cached: false } };
+  const { rows } = await queryRead(sql, params, req);
+  const data = rows.map((row) => transformFeedMediaUrls(row));
+  const payload = { data, meta: { limit, offset, cached: false, ...readRoutingHeaders(req) } };
   await setCachedFeed(cacheParams, payload);
   res.json(payload);
 }
 
 export async function getPost(req, res) {
-  const { rows } = await query(`${FEED_SELECT} WHERE p.id = $1`, [req.params.id]);
+  const { rows } = await queryRead(`${FEED_SELECT} WHERE p.id = $1`, [req.params.id], req);
 
   if (rows.length === 0) {
     return res.status(404).json({ error: 'Post not found' });
   }
 
-  res.json({ data: rows[0] });
+  res.json({ data: transformFeedMediaUrls(rows[0]) });
 }
 
 export async function getPostReplies(req, res) {

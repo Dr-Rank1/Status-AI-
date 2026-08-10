@@ -61,6 +61,24 @@ export function initSocket(httpServer) {
       if (sessionId) socket.join(`live:${sessionId}`);
     });
 
+    socket.on('join_metaverse_sync', (syncToken) => {
+      if (syncToken) socket.join(`metaverse:${syncToken}`);
+    });
+
+    socket.on('metaverse_voice_chunk', ({ syncToken, chunk, format }) => {
+      if (!syncToken || !chunk) return;
+      io.to(`metaverse:${syncToken}`).emit('metaverse_voice_stream', {
+        chunk,
+        format: format ?? 'pcm16',
+        timestamp: Date.now(),
+      });
+    });
+
+    socket.on('metaverse_personality_update', ({ syncToken, patch }) => {
+      if (!syncToken || !patch) return;
+      io.to(`metaverse:${syncToken}`).emit('metaverse_personality_sync', patch);
+    });
+
     socket.emit('connected', { userId: socket.user.id });
 
     socket.on('disconnect', () => {
@@ -119,6 +137,16 @@ export function emitLiveChat(sessionId, payload) {
 export function emitLiveTtsChunk(sessionId, payload) {
   if (!io) return;
   io.to(`live:${sessionId}`).emit('live_tts_chunk', payload);
+}
+
+export function emitMetaverseVoiceChunk(syncToken, payload) {
+  if (!io) return;
+  io.to(`metaverse:${syncToken}`).emit('metaverse_voice_stream', payload);
+}
+
+export function emitMetaversePersonalitySync(syncToken, patch) {
+  if (!io) return;
+  io.to(`metaverse:${syncToken}`).emit('metaverse_personality_sync', patch);
 }
 
 export function emitLiveAiSpeaking(sessionId, payload) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/messaging.dart';
 import '../../models/spatial.dart';
+import '../../services/spatial_audio_service.dart';
+import '../../services/bci_input_service.dart';
 import '../../services/api_service.dart';
 import '../../services/gaze_voice_navigation_service.dart';
 import '../../services/spatial_context_service.dart';
@@ -32,6 +34,8 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
   final _contextService = SpatialContextService();
   final _sceneService = SpatialSceneService();
   final _nav = GazeVoiceNavigationService();
+  final _spatialAudio = SpatialAudioService();
+  final _bci = BciInputService();
   final _messageController = TextEditingController();
 
   double _distanceMeters = 1.0;
@@ -39,6 +43,8 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
   String? _aiReply;
   bool _busy = false;
   bool _voiceNav = false;
+  Color _bciBackground = Colors.black;
+  Color _bciAccent = AppColors.primary;
 
   @override
   void initState() {
@@ -49,12 +55,23 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
   Future<void> _bootstrap() async {
     await SpatialContextService.init();
     await _nav.init();
+    await _spatialAudio.init();
     _nav.setCommandHandler((action) {
       if (action == SpatialNavAction.goBack && mounted) {
         Navigator.of(context).pop();
       }
     });
+    _bci.setCharacterId(widget.character.id);
+    _bci.setThemeCallback((theme) {
+      if (!mounted) return;
+      setState(() {
+        _bciBackground = Color(theme.backgroundColor);
+        _bciAccent = Color(theme.accentColor);
+      });
+    });
+    await _bci.init(api: widget.api, simulationMode: false);
     await _refreshContext();
+    _spatialAudio.updateFromSpatialContext(distanceMeters: _distanceMeters);
   }
 
   Future<void> _refreshContext() async {
@@ -108,6 +125,8 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
         _aiReply = result.content;
         _zone = context.proxemicZone;
       });
+      _spatialAudio.updateFromSpatialContext(distanceMeters: _distanceMeters);
+      await _spatialAudio.speakSpatial(result.content);
       _messageController.clear();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -129,6 +148,8 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
   @override
   void dispose() {
     _nav.dispose();
+    _spatialAudio.dispose();
+    _bci.dispose();
     _messageController.dispose();
     super.dispose();
   }
@@ -136,18 +157,19 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _bciBackground,
       appBar: AppBar(
+        backgroundColor: _bciBackground,
         title: Text('${widget.character.name} · Spatial'),
         actions: [
           IconButton(
             onPressed: _persistScene,
-            icon: const Icon(Icons.anchor),
+            icon: Icon(Icons.anchor, color: _bciAccent),
             tooltip: 'Anchor scene',
           ),
           IconButton(
             onPressed: _toggleVoiceNav,
-            icon: Icon(_voiceNav ? Icons.hearing_disabled : Icons.hearing),
+            icon: Icon(_voiceNav ? Icons.hearing_disabled : Icons.hearing, color: _bciAccent),
             tooltip: 'Voice navigation',
           ),
         ],
@@ -176,6 +198,7 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
                   distanceMeters: _distanceMeters,
                   onChanged: (d) async {
                     setState(() => _distanceMeters = d);
+                    _spatialAudio.updateFromSpatialContext(distanceMeters: d);
                     await _refreshContext();
                   },
                 ),
@@ -209,7 +232,7 @@ class _SpatialSceneScreenState extends State<SpatialSceneScreen> {
                   onActivate: _sendAmbient,
                   child: IconButton(
                     onPressed: _busy ? null : _sendAmbient,
-                    icon: const Icon(Icons.send_rounded, color: AppColors.primary),
+                    icon: Icon(Icons.send_rounded, color: _bciAccent),
                   ),
                 ),
               ],

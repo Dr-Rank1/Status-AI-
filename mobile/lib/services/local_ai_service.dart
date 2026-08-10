@@ -28,6 +28,7 @@ class LocalAiService {
     required String characterBio,
     required String userMessage,
     List<String> recentLines = const [],
+    double? temperature,
   }) async {
     if (!await isAvailable) return null;
     await init();
@@ -42,7 +43,10 @@ class LocalAiService {
         instructions:
             'You are $characterName. ${characterBio.isNotEmpty ? 'Bio: $characterBio. ' : ''}'
             'Reply in 1-3 sentences, in character.',
-        config: const GenerationConfig(maxTokens: 120, temperature: 0.85),
+        config: GenerationConfig(
+          maxTokens: 120,
+          temperature: temperature ?? 0.85,
+        ),
       );
       return response.text.trim().isEmpty ? null : response.text.trim();
     } catch (_) {

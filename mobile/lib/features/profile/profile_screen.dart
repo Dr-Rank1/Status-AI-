@@ -6,14 +6,16 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/profile.dart';
 import '../../models/session.dart';
 import '../../services/api_service.dart';
-import '../../../main.dart' show permissionService;
+import '../../../main.dart' show permissionService, realtimeService, notificationService;
 import '../../theme/app_theme.dart';
+import '../../utils/wearable_platform.dart';
 import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
 import '../../widgets/character_3d_viewer.dart';
 import '../../widgets/gated_character_3d_viewer.dart';
 import '../feedback/feedback_screen.dart';
+import '../wearable/wearable_hud_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -286,6 +288,25 @@ class ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => WearableHudScreen(
+                                api: widget.api,
+                                realtime: realtimeService,
+                                notifications: notificationService,
+                                energy: data.profile.energy,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.visibility, size: 18),
+                        label: Text(WearablePlatform.isWearableMode ? 'Wearable HUD' : 'Open glasses HUD'),
                       ),
                     ),
                     Padding(

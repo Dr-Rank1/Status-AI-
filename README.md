@@ -447,3 +447,263 @@ Apply migration `013_e2ee_fine_tuning.sql` before using E2EE columns.
 - Server stores ciphertext only; moderation and AI replies are skipped for encrypted messages.
 - Flutter client encrypts via `cryptography` (AES-GCM); `mobile/native/e2ee/` documents the future Olm/Megolm Rust bridge.
 - Register device keys: `POST /api/v1/e2ee/keys`.
+
+## Phase 20 — Wearables, Agent Wallets, IPFS & ZKP Privacy
+
+### Smart glasses HUD
+
+Set `WEARABLE_MODE=true` in `mobile/.env` to launch the lightweight HUD after login, or open it from Profile → **Open glasses HUD**.
+
+- `WearableHudScreen` — ambient character stream + energy pill
+- `WearableCompanionService` — low-power BLE background sync (`flutter_blue_plus`)
+- Sync API: `GET /api/v1/wearable/sync`
+
+### Autonomous agent wallets
+
+Each AI character gets a wallet (`agent_wallets`) with an energy pool and token balance. Characters autonomously tip users for high-engagement posts and community objectives.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/characters/:id/wallet` | Wallet balance + recent tips |
+| `GET /api/v1/wallets/agents` | All character wallets |
+
+Cron `agent-tip-sweep` runs every 6 hours by default.
+
+### Decentralized media (IPFS)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/storage/pin` | Pin uploaded file → CID |
+| `POST /api/v1/storage/pin-url` | Pin remote URL |
+| `POST /api/v1/storage/characters/:id/pin` | Pin avatar/GLB to character |
+| `GET /api/v1/storage/resolve` | Resolve CID → gateway URL |
+
+Set `IPFS_AUTO_PIN=true` to auto-pin uploads. CIDs stored on `users`, `ai_characters`, and `posts` (migration `014_wearable_wallets_ipfs_zkp.sql`).
+
+### Zero-knowledge reputation proofs
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/zkp/proof` | Generate proof bundle (auth) |
+| `POST /api/v1/zkp/verify` | Verify claim without PII (public) |
+
+Supported claims: `reputation_min`, `account_age_days`, `vip`. Verifier sees only a pseudonymous commitment — never user id, email, or chat history.
+
+## Phase 21 — Multi-Agent AI, Federated Learning & Developer API
+
+### Multi-agent coordination
+
+When `MULTI_AGENT_ENABLED=true` (default), agent modes (`dm`, `group_dm`, `post_reply`) use a **coordinator** that spawns parallel subagents:
+
+| Subagent | Role |
+|----------|------|
+| Research | Lore/web context in isolated window |
+| Tools | Calendar, links |
+| Dialogue | Final in-character reply synthesis |
+
+Implementation: `backend/src/services/ai/multiAgentCoordinator.js`
+
+### Federated learning
+
+On-device preference training (`FederatedLearningService`) syncs encrypted weight deltas — no raw chat leaves the device.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/public/federated/status` | Open round info |
+| `GET /api/v1/public/federated/weights` | Latest global baseline |
+| `POST /api/v1/public/federated/submit` | Submit encrypted contribution |
+
+Set matching keys: backend `FEDERATED_AGGREGATION_KEY` ↔ mobile `FEDERATED_SYNC_KEY`
+
+### Public developer API
+
+**Developer portal:** [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
+
+```bash
+# 1. Register client (authenticated)
+POST /api/v1/developers/clients  { "name": "My App" }
+
+# 2. Get token
+POST /api/v1/public/oauth/token
+  { "grant_type": "client_credentials", "client_id": "...", "client_secret": "..." }
+
+# 3. Call API
+GET /api/v1/public/feed
+Authorization: Bearer <token>
+```
+
+**Webhooks:** `POST /api/v1/public/webhooks` — subscribe to `narrative.event`, `character.status`, `feed.post`
+
+See **`MAINTENANCE.md`** for deployment topology and hand-off checklist.
+
+## Phase 22 — AI Governance, Post-Quantum Security & Global Edge
+
+### AI governance & compliance
+
+Automated logging for EU AI Act / GDPR:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/v1/compliance/audit` | Export governance + consent audit trail (admin) |
+| `GET /api/v1/compliance/status` | CDN, replicas, anomaly summary (admin) |
+
+Every AI decision logs model provider, provenance hash, and explainability metadata via `aiGovernanceService`.
+
+### Post-quantum cryptography
+
+- **JWT:** Hybrid HS256 + detached PQ signature (`X-Status-PQ-Signature` header)
+- **E2EE DMs:** CRYSTALS-Kyber768 Rust bridge (`mobile/native/e2ee/pq_crypto/`) + AES-256-GCM
+- Register Kyber keys: `POST /api/v1/pq/keys`
+
+Build native library: `mobile/native/e2ee/pq_crypto/build.sh`
+
+### Global edge & read replicas
+
+- **CDN:** Terraform in `deploy/cdn/` (CloudFront + Cloudflare)
+- **Read routing:** Feed queries use geographic PostgreSQL replicas via `CF-IPCountry`
+
+```env
+CDN_BASE_URL=https://cdn.status.app
+DATABASE_READ_URLS=eu-west-1=postgresql://...,ap-southeast-1=postgresql://...
+```
+
+### AI observability & alerting
+
+- Anomaly detection: prompt injection, hallucination markers, latency spikes, PQ handshake failures
+- Prometheus rules: `deploy/monitoring/ai-alerting-rules.yml`
+- Alerts dispatch to Slack / PagerDuty when configured
+
+## Phase 23 — Self-Healing, Synthetic Simulation, Spatial Audio & BCI
+
+### Autonomous self-healing daemon
+
+Production runtime errors and payload-shape shifts trigger an automated patch pipeline:
+
+| Component | Path |
+|-----------|------|
+| Daemon config | `deploy/self-healing/daemon.config.json` |
+| Orchestrator | `backend/src/services/selfHealing/selfHealingService.js` |
+| Sandbox evaluator | `backend/src/services/selfHealing/selfHealingSandbox.js` |
+| Hot-fix registry | `backend/src/services/selfHealing/selfHealingRegistry.js` |
+
+Admin endpoints: `GET /api/v1/admin/self-healing/status`, `POST /api/v1/admin/self-healing/inspect`
+
+```env
+SELF_HEALING_ENABLED=true
+SELF_HEALING_AUTO_APPLY=true
+SELF_HEALING_CONFIG=deploy/self-healing/daemon.config.json
+```
+
+### Synthetic data simulation engine
+
+Generates thousands of virtual personas to stress-test character drift and guardrails on staging:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/admin/synthetic/run` | Launch persona batch (admin) |
+| `GET /api/v1/admin/synthetic/curated` | Export fine-tuning JSONL candidates |
+
+```env
+SYNTHETIC_SIM_ENABLED=true
+SYNTHETIC_PERSONA_COUNT=100
+SYNTHETIC_STAGING_ONLY=true
+```
+
+### 3D spatial audio (Flutter)
+
+`SpatialAudioService` adjusts pan, attenuation, and reverb from avatar distance/orientation in spatial scenes. Integrated in `SpatialSceneScreen` for character TTS replies.
+
+```env
+# mobile/.env
+SPATIAL_AUDIO=true
+```
+
+Dependency: `just_audio` for spatial file/URL playback.
+
+### BCI input abstraction (Flutter + Backend)
+
+`BciInputService` maps processed valence/arousal/focus metrics (no raw EEG) to UI theme colors and character affinity shifts.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/bci/intent` | Submit processed neural intent |
+| `GET /api/v1/bci/events` | Recent BCI events for user |
+
+```env
+BCI_MODE=true
+```
+
+Privacy: raw neural waveforms blocked by `bciPrivacyMiddleware` — only bucketed metrics accepted.
+
+## Phase 24 — Biometric Affect, P2P Mesh, Metaverse & Golden Master
+
+### Affective biometric feedback
+
+On-device processing of HRV, facial valence, and voice stress feeds the local AI context window and backend prompts:
+
+| Component | Path |
+|-----------|------|
+| Biometrics service | `mobile/lib/services/affective_biometrics_service.dart` |
+| AI context bridge | `mobile/lib/services/affective_context_bridge.dart` |
+| Backend service | `backend/src/services/affectiveBiometricsService.js` |
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/affective/metrics` | Submit processed affective metrics |
+| `GET /api/v1/affective/context` | Latest affective AI prompt block |
+
+```env
+AFFECTIVE_BIOMETRICS=true
+```
+
+### P2P edge mesh networking
+
+WebRTC + libp2p-style gossip for offline thread/embedding/memory sync:
+
+| Component | Path |
+|-----------|------|
+| Mesh service | `mobile/lib/services/mesh_network_service.dart` |
+| Gossip protocol | `mobile/lib/services/mesh_gossip_protocol.dart` |
+| Signaling relay | `backend/src/services/meshRelayService.js` |
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/mesh/register` | Register mesh peer |
+| `POST /api/v1/mesh/gossip` | Gossip sync record |
+| `POST /api/v1/mesh/signal` | WebRTC signaling relay |
+
+```env
+MESH_NETWORK_ENABLED=true
+MESH_CLUSTER_ID=status-local
+```
+
+### Open metaverse connectors (VRM / OpenXR)
+
+Export character personalities, memories, and voice streams to external engines:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/metaverse/sync` | Create sync session (VRM/OpenXR manifest) |
+| `GET /api/v1/metaverse/sync/:token` | Retrieve sync manifest |
+| `GET /api/v1/metaverse/export/:characterId` | Direct character export |
+
+WebSocket: `join_metaverse_sync`, `metaverse_voice_stream`, `metaverse_personality_sync`
+
+Supported engines: Unreal Engine 5, Unity, OpenXR runtimes.
+
+### Golden master release
+
+| Artifact | Path |
+|----------|------|
+| Deployment script | `deploy/deploy_golden_master.sh` |
+| Security audit | `scripts/golden_master_audit.sh` |
+| Architecture diagrams | `docs/GOLDEN_MASTER.md` |
+
+```bash
+chmod +x deploy/deploy_golden_master.sh scripts/golden_master_audit.sh
+./scripts/golden_master_audit.sh
+./deploy/deploy_golden_master.sh
+```
+
+Migration **018** adds `affective_biometric_events`, `mesh_peer_sessions`, `mesh_gossip_records`, `metaverse_sync_sessions`.
+

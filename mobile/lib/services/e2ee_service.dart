@@ -1,28 +1,36 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Client-side E2EE for sensitive DMs.
-///
-/// Uses AES-GCM session keys derived per thread. A future Rust bridge
-/// (`mobile/native/e2ee/`) can swap the primitive layer for Olm/Megolm
-/// without changing the API surface used by [ApiService].
-class E2eeService {
-  E2eeService({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+import 'pq_e2ee_bridge.dart';
 
-  static const _rootKeyName = 'status_e2ee_root_v1';
-  static const _algorithm = 'aes-256-gcm';
+/// Client-side E2EE for sensitive DMs — hybrid Kyber768 + AES-256-GCM.
+class E2eeService {
+  E2eeService({FlutterSecureStorage? storage, PqE2eeBridge? pqBridge})
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _pq = pqBridge ?? PqE2eeBridge.instance;
+
+  static const _rootKeyName = 'status_e2ee_root_v2';
+  static const _kyberSkName = 'status_kyber_sk_v1';
+  static const _algorithmClassic = 'aes-256-gcm';
+  static const _algorithmHybrid = 'kyber768+aes-256-gcm';
 
   final FlutterSecureStorage _storage;
+  final PqE2eeBridge _pq;
   final AesGcm _aes = AesGcm.with256bits();
   SecretKey? _rootKey;
+  Uint8List? _kyberSecretKey;
 
   Future<void> init() async {
     _rootKey ??= await _loadOrCreateRootKey();
+    await _pq.init();
+    await _loadOrCreateKyberKeys();
   }
+
+  bool get usesPostQuantum => _pq.isAvailable && _kyberSecretKey != null;
 
   Future<String> deviceId() async {
     await init();
@@ -33,8 +41,18 @@ class E2eeService {
 
   Future<String> identityKeyPublic() async {
     await init();
+    final pair = await _pq.generateKeypair();
+    if (pair != null) {
+      return base64Url.encode(pair['publicKey']!);
+    }
     final bytes = await _rootKey!.extractBytes();
     return base64Url.encode(bytes);
+  }
+
+  Future<String?> kyberPublicKeyBase64() async {
+    await init();
+    final pair = await _pq.generateKeypair();
+    return pair != null ? base64.encode(pair['publicKey']!) : null;
   }
 
   Future<Map<String, dynamic>> encryptForThread({
@@ -42,6 +60,7 @@ class E2eeService {
     required String plaintext,
   }) async {
     await init();
+    final algorithm = usesPostQuantum ? _algorithmHybrid : _algorithmClassic;
     final sessionKey = await _sessionKeyForThread(threadId);
     final secretBox = await _aes.encrypt(
       utf8.encode(plaintext),
@@ -51,10 +70,11 @@ class E2eeService {
     return {
       'ciphertext': base64.encode(secretBox.cipherText + secretBox.mac.bytes),
       'encryptionMeta': {
-        'algorithm': _algorithm,
+        'algorithm': algorithm,
         'iv': base64.encode(secretBox.nonce),
         'senderKeyId': await deviceId(),
-        'version': 1,
+        'version': usesPostQuantum ? 2 : 1,
+        'pq': usesPostQuantum,
       },
       'contentPreview': '🔒 Encrypted message',
     };
@@ -90,11 +110,30 @@ class E2eeService {
     return SecretKey(bytes);
   }
 
+  Future<void> _loadOrCreateKyberKeys() async {
+    if (!_pq.isAvailable) return;
+
+    final storedSk = await _storage.read(key: _kyberSkName);
+    if (storedSk != null) {
+      _kyberSecretKey = Uint8List.fromList(base64.decode(storedSk));
+      return;
+    }
+
+    final pair = await _pq.generateKeypair();
+    if (pair == null) return;
+
+    _kyberSecretKey = pair['secretKey'];
+    await _storage.write(key: _kyberSkName, value: base64.encode(_kyberSecretKey!));
+  }
+
   Future<SecretKey> _sessionKeyForThread(String threadId) async {
     await init();
-    final rootBytes = await _rootKey!.extractBytes();
-    final material = utf8.encode('$threadId:${base64.encode(rootBytes)}');
-    final hash = await Sha256().hash(material);
-    return SecretKey(hash.bytes);
+    final rootBytes = Uint8List.fromList(await _rootKey!.extractBytes());
+
+    if (usesPostQuantum && _kyberSecretKey != null) {
+      return _pq.deriveFallbackSessionKey(threadId, _kyberSecretKey!);
+    }
+
+    return _pq.deriveFallbackSessionKey(threadId, rootBytes);
   }
 }

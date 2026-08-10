@@ -1,0 +1,72 @@
+# Prometheus alerting rules — AI observability & post-quantum auth
+groups:
+  - name: status_ai_observability
+    rules:
+      - alert: AIHighLatency
+        expr: histogram_quantile(0.95, sum(rate(ai_request_duration_seconds_bucket[5m])) by (le, provider)) > 15
+        for: 5m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "AI p95 latency > 15s ({{ $labels.provider }})"
+          description: "Model responses are degrading — check vLLM/cloud provider health."
+
+      - alert: AIRequestFailureSpike
+        expr: sum(rate(ai_requests_total{status="error"}[5m])) / sum(rate(ai_requests_total[5m])) > 0.15
+        for: 3m
+        labels:
+          severity: critical
+          team: ai-platform
+        annotations:
+          summary: "AI error rate > 15%"
+          description: "Possible model drift or provider outage."
+
+      - alert: AIHallucinationDetected
+        expr: increase(ai_anomaly_events_total{type="model_hallucination"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: ai-platform
+        annotations:
+          summary: "Hallucination marker detected in LLM output"
+          description: "Review ai_anomaly_events table and governance logs."
+
+      - alert: PromptInjectionDetected
+        expr: increase(ai_anomaly_events_total{type="prompt_injection"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Toxic prompt injection attempt detected"
+
+      - alert: PQAuthHandshakeFailure
+        expr: increase(ai_anomaly_events_total{type="pq_handshake_failure"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Post-quantum authentication handshake failed"
+          description: "Check Kyber key registry and X-Status-PQ-Signature headers."
+
+  - name: status_infrastructure
+    rules:
+      - alert: ReadReplicaDown
+        expr: status_db_read_replica_up == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL read replica unreachable ({{ $labels.region }})"
+
+      - alert: CDNOriginErrorRate
+        expr: sum(rate(cloudfront_origin_latency[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "CDN origin latency elevated"

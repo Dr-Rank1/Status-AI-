@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/session.dart';
@@ -8,6 +10,8 @@ import '../../services/realtime_service.dart';
 import '../../services/telemetry_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/main_shell.dart';
+import '../../utils/wearable_platform.dart';
+import '../wearable/wearable_hud_screen.dart';
 import 'login_screen.dart';
 
 class AuthGate extends StatefulWidget {
@@ -43,6 +47,7 @@ class _AuthGateState extends State<AuthGate> {
     try {
       final session = await widget.api.fetchSession();
       await widget.api.connectRealtime(widget.realtime);
+      unawaited(widget.api.syncFederatedLearning());
       await TelemetryService.setUser(
         id: session.user.id,
         username: session.user.username,
@@ -76,6 +81,15 @@ class _AuthGateState extends State<AuthGate> {
 
     if (_session == null) {
       return LoginScreen(api: widget.api, onAuthenticated: _bootstrap);
+    }
+
+    if (WearablePlatform.preferHudLaunch) {
+      return WearableHudScreen(
+        api: widget.api,
+        realtime: widget.realtime,
+        notifications: widget.notifications,
+        energy: _session!.energy,
+      );
     }
 
     return MainShell(
