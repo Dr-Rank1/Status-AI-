@@ -20,7 +20,7 @@ describe('authService', () => {
   });
 
   it('signs and verifies JWT payloads', () => {
-    const user = { id: '00000000-0000-0000-0000-000000000001', username: 'tester' };
+    const user = { id: '00000000-0000-0000-0000-000000000001', username: 'tester', tenant_id: '00000000-0000-0000-0000-000000000099' };
     const token = signToken(user);
     const payload = verifyToken(token);
     assert.equal(payload.userId, user.id);

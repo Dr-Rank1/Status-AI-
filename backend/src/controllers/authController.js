@@ -3,7 +3,13 @@ import { getSessionPayload } from '../services/sessionService.js';
 
 export async function register(req, res) {
   const { username, email, password, displayName } = req.body;
-  const result = await registerUser({ username, email, password, displayName });
+  const result = await registerUser({
+    username,
+    email,
+    password,
+    displayName,
+    tenantId: req.tenantId,
+  });
 
   const session = await getSessionPayload(result.user.id);
 
@@ -20,7 +26,7 @@ export async function register(req, res) {
 
 export async function login(req, res) {
   const { email, password } = req.body;
-  const result = await loginUser({ email, password });
+  const result = await loginUser({ email, password, tenantId: req.tenantId });
 
   const session = await getSessionPayload(result.user.id);
 

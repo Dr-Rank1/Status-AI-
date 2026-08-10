@@ -200,3 +200,31 @@ export const metaverseSyncSchema = z.object({
   engineType: z.enum(['generic', 'unreal', 'unity', 'openxr']).optional().default('generic'),
   exportFormat: z.enum(['vrm', 'openxr']).optional().default('vrm'),
 });
+
+export const tenantThemeSchema = z.object({
+  appName: z.string().trim().min(1).max(64).optional(),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  accentColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  surfaceColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  fontFamily: z.string().trim().max(64).optional(),
+  logoUrl: z.string().url().optional().nullable(),
+});
+
+export const tenantAiConfigSchema = z.object({
+  defaultProvider: z.enum(['mock', 'openai', 'anthropic', 'gemini', 'vllm']).optional(),
+  systemPromptPrefix: z.string().max(2000).optional(),
+  empathyDefault: z.number().min(0).max(1).optional(),
+});
+
+export const tenantProvisionSchema = z.object({
+  slug: z.string().trim().min(2).max(32).regex(/^[a-z0-9-]+$/),
+  name: z.string().trim().min(2).max(128),
+  themeConfig: tenantThemeSchema.optional(),
+  aiConfig: tenantAiConfigSchema.optional(),
+});
+
+export const subscriptionSyncSchema = z.object({
+  appUserId: z.string().trim().min(1).max(128).optional(),
+  activeEntitlements: z.array(z.string()).optional(),
+});

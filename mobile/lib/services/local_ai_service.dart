@@ -1,5 +1,7 @@
 import 'package:flutter_local_ai/flutter_local_ai.dart';
 
+import 'edge_inference_service.dart';
+
 /// On-device inference via Gemini Nano / Apple Foundation Models.
 class LocalAiService {
   LocalAiService({FlutterLocalAi? engine}) : _engine = engine ?? FlutterLocalAi();
@@ -98,5 +100,31 @@ class LocalAiService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// NPU-accelerated path when EdgeInferenceService is configured.
+  Future<String?> generateWithEdgeFallback({
+    required String characterName,
+    required String characterBio,
+    required String userMessage,
+    List<String> recentLines = const [],
+    double? temperature,
+  }) async {
+    await edgeInferenceService.init();
+    final history = recentLines.isEmpty ? '' : 'Recent:\n${recentLines.join('\n')}\n';
+    final result = await edgeInferenceService.generateText(
+      prompt: '$history User: "$userMessage"',
+      instructions: 'You are $characterName. $characterBio Reply in 1-3 sentences.',
+      temperature: temperature ?? 0.85,
+    );
+    if (result != null) return result;
+
+    return generateDmReply(
+      characterName: characterName,
+      characterBio: characterBio,
+      userMessage: userMessage,
+      recentLines: recentLines,
+      temperature: temperature,
+    );
   }
 }

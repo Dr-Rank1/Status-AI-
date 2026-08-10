@@ -7,6 +7,7 @@ import '../../services/analytics_service.dart';
 import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/realtime_service.dart';
+import '../../services/subscription_service.dart';
 import '../../services/telemetry_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/main_shell.dart';
@@ -47,6 +48,10 @@ class _AuthGateState extends State<AuthGate> {
     try {
       final session = await widget.api.fetchSession();
       await widget.api.connectRealtime(widget.realtime);
+      if (SubscriptionService.isSupported) {
+        await subscriptionService.init(userId: session.user.id, api: widget.api);
+      }
+      subscriptionService.applyBackendEntitlements(isPro: session.subscription.isPro);
       unawaited(widget.api.syncFederatedLearning());
       await TelemetryService.setUser(
         id: session.user.id,

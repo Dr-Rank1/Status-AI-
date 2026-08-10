@@ -23,9 +23,13 @@ export async function authMiddleware(req, res, next) {
       throw err;
     }
 
-    const user = await getUserById(payload.userId);
+    const user = await getUserById(payload.userId, payload.tenantId ?? req.tenantId);
     if (!user) {
       throw new AppError('User not found', 401, 'UNAUTHORIZED');
+    }
+
+    if (payload.tenantId && req.tenantId && payload.tenantId !== req.tenantId) {
+      throw new AppError('Token tenant mismatch', 403, 'TENANT_FORBIDDEN');
     }
 
     req.user = user;

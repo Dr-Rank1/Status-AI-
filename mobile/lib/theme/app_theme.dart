@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../models/theme_config.dart';
+
+/// Legacy static palette — prefer [ThemeConfig] for white-label deployments.
 abstract final class AppColors {
   static const background = Color(0xFF0A0A0B);
   static const surface = Color(0xFF141416);
@@ -17,29 +20,39 @@ abstract final class AppColors {
   static const success = Color(0xFF34D399);
 }
 
-ThemeData buildAppTheme() {
+ThemeData buildAppTheme([ThemeConfig config = ThemeConfig.defaults]) {
+  final bg = config.background;
+  final surface = config.surface;
+  final primary = config.primary;
+  final accent = config.accent;
+
   final base = ThemeData(
     brightness: Brightness.dark,
     useMaterial3: true,
-    scaffoldBackgroundColor: AppColors.background,
-    colorScheme: const ColorScheme.dark(
-      surface: AppColors.surface,
-      primary: AppColors.primary,
-      secondary: AppColors.accent,
+    scaffoldBackgroundColor: bg,
+    colorScheme: ColorScheme.dark(
+      surface: surface,
+      primary: primary,
+      secondary: accent,
       onSurface: AppColors.textPrimary,
     ),
   );
 
+  final textTheme = config.fontFamily.toLowerCase() == 'inter'
+      ? GoogleFonts.interTextTheme(base.textTheme)
+      : base.textTheme;
+
   return base.copyWith(
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+    textTheme: textTheme.apply(
       bodyColor: AppColors.textPrimary,
       displayColor: AppColors.textPrimary,
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.background,
+    appBarTheme: AppBarTheme(
+      backgroundColor: bg,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
+      foregroundColor: AppColors.textPrimary,
     ),
     dividerTheme: const DividerThemeData(
       color: AppColors.border,
@@ -47,7 +60,7 @@ ThemeData buildAppTheme() {
     ),
     iconTheme: const IconThemeData(color: AppColors.textSecondary),
     cardTheme: CardThemeData(
-      color: AppColors.surface,
+      color: surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
@@ -55,15 +68,15 @@ ThemeData buildAppTheme() {
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.surface,
-      indicatorColor: AppColors.primary.withValues(alpha: 0.2),
+      backgroundColor: surface,
+      indicatorColor: primary.withValues(alpha: 0.2),
       labelTextStyle: WidgetStateProperty.all(
         const TextStyle(color: AppColors.textSecondary, fontSize: 12),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.primary,
+        backgroundColor: primary,
         foregroundColor: Colors.white,
       ),
     ),

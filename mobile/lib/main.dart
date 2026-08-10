@@ -16,6 +16,8 @@ import 'services/realtime_service.dart';
 import 'services/spatial_context_service.dart';
 import 'services/telemetry_service.dart';
 import 'theme/app_theme.dart';
+import 'services/theme_config_service.dart';
+import 'models/theme_config.dart';
 import 'utils/desktop_platform.dart';
 
 final notificationService = NotificationService();
@@ -48,8 +50,9 @@ Future<void> _bootstrapAndRun() async {
   await FeatureFlagService.instance.init();
   await OfflineCacheService.init();
   await SpatialContextService.init();
+  await themeConfigService.load();
 
-  apiService = ApiService();
+  apiService = ApiService(tenantSlug: themeConfigService.tenantHeaderSlug);
   analyticsService = AnalyticsService(api: apiService);
 
   await notificationService.init();
@@ -76,6 +79,7 @@ Future<void> _bootstrapAndRun() async {
     realtime: realtimeService,
     notifications: notificationService,
     analytics: analyticsService,
+    themeConfig: themeConfigService.config,
   ));
 }
 
@@ -93,24 +97,29 @@ class StatusApp extends StatelessWidget {
     required this.realtime,
     required this.notifications,
     required this.analytics,
+    this.themeConfig = ThemeConfig.defaults,
   });
 
   final ApiService api;
   final RealtimeService realtime;
   final NotificationService notifications;
   final AnalyticsService analytics;
+  final ThemeConfig themeConfig;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Status',
-      debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(),
-      home: AuthGate(
-        api: api,
-        realtime: realtime,
-        notifications: notifications,
-        analytics: analytics,
+    return ThemeConfigProvider(
+      config: themeConfig,
+      child: MaterialApp(
+        title: themeConfig.appName,
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(themeConfig),
+        home: AuthGate(
+          api: api,
+          realtime: realtime,
+          notifications: notifications,
+          analytics: analytics,
+        ),
       ),
     );
   }

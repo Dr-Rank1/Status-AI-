@@ -75,16 +75,57 @@ class SessionUser {
   }
 }
 
+class SubscriptionState {
+  const SubscriptionState({
+    required this.tier,
+    required this.isPro,
+    this.entitlements = const [],
+    this.expiresAt,
+    this.productId,
+  });
+
+  final String tier;
+  final bool isPro;
+  final List<String> entitlements;
+  final DateTime? expiresAt;
+  final String? productId;
+
+  factory SubscriptionState.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return const SubscriptionState(tier: 'free', isPro: false);
+    }
+    final raw = json['entitlements'];
+    final list = raw is List ? raw.map((e) => e.toString()).toList() : <String>[];
+    return SubscriptionState(
+      tier: json['tier'] as String? ?? 'free',
+      isPro: json['isPro'] as bool? ?? false,
+      entitlements: list,
+      expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'] as String) : null,
+      productId: json['productId'] as String?,
+    );
+  }
+}
+
 class AppSession {
-  const AppSession({required this.user, required this.energy});
+  const AppSession({
+    required this.user,
+    required this.energy,
+    this.subscription = const SubscriptionState(tier: 'free', isPro: false),
+  });
 
   final SessionUser user;
   final EnergyState energy;
+  final SubscriptionState subscription;
 
-  AppSession copyWith({SessionUser? user, EnergyState? energy}) {
+  AppSession copyWith({
+    SessionUser? user,
+    EnergyState? energy,
+    SubscriptionState? subscription,
+  }) {
     return AppSession(
       user: user ?? this.user,
       energy: energy ?? this.energy,
+      subscription: subscription ?? this.subscription,
     );
   }
 
@@ -92,6 +133,7 @@ class AppSession {
     return AppSession(
       user: SessionUser.fromJson(json['user'] as Map<String, dynamic>),
       energy: EnergyState.fromJson(json['energy'] as Map<String, dynamic>),
+      subscription: SubscriptionState.fromJson(json['subscription'] as Map<String, dynamic>?),
     );
   }
 }

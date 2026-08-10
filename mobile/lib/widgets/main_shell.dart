@@ -172,7 +172,10 @@ class _MainShellState extends State<MainShell> {
         builder: (_) => StoreScreen(
           api: widget.api,
           currentEnergy: _session.energy,
+          subscription: _session.subscription,
           onEnergyUpdated: (energy) => _updateSession(_session.copyWith(energy: energy)),
+          onSubscriptionUpdated: (subscription) =>
+              _updateSession(_session.copyWith(subscription: subscription)),
         ),
       ),
     );

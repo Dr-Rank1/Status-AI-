@@ -707,3 +707,102 @@ chmod +x deploy/deploy_golden_master.sh scripts/golden_master_audit.sh
 
 Migration **018** adds `affective_biometric_events`, `mesh_peer_sessions`, `mesh_gossip_records`, `metaverse_sync_sessions`.
 
+## Phase 25 — White-Label SaaS & Multi-Tenant Architecture
+
+### Multi-tenant backend
+
+PostgreSQL Row-Level Security isolates tenant data:
+
+| Component | Path |
+|-----------|------|
+| Migration | `backend/db/migrations/019_phase25_multi_tenant.sql` |
+| Tenant service | `backend/src/services/tenantService.js` |
+| Middleware | `backend/src/middleware/tenant.js` |
+| DB session context | `backend/src/config/database.js` (`SET LOCAL app.tenant_id`) |
+
+Core tables scoped: `users`, `ai_characters`, `posts`, `dm_threads`, `dm_messages`.
+
+All API requests require `X-Tenant-Slug` header (or subdomain routing).
+
+### White-label Flutter theming
+
+| Component | Path |
+|-----------|------|
+| Theme model | `mobile/lib/models/theme_config.dart` |
+| Theme service | `mobile/lib/services/theme_config_service.dart` |
+| Dynamic theme | `mobile/lib/theme/app_theme.dart` → `buildAppTheme(ThemeConfig)` |
+
+```env
+TENANT_SLUG=your-tenant-slug
+```
+
+Theme fetched at startup from `GET /api/v1/tenant/theme` — no App Store update required.
+
+### Client admin dashboard (Next.js)
+
+```bash
+cd dashboard && npm install && npm run dev
+```
+
+| Panel | Route |
+|-------|-------|
+| Overview | `/` |
+| Theme customization | `/theme` |
+| AI character tuning | `/characters` |
+| User moderation | `/moderation` |
+
+### Tenant provisioning (Ubuntu)
+
+```bash
+chmod +x scripts/provision_tenant.sh
+./scripts/provision_tenant.sh acme-corp "Acme Corporation"
+```
+
+See **`CLIENT_HANDOFF.md`** for ownership transfer checklist and environment reference.
+
+## Phase 26 — Monetization, Edge AI, & Zero-Touch Maintenance
+
+### RevenueCat subscriptions
+
+| Component | Path |
+|-----------|------|
+| Webhook handler | `backend/src/controllers/subscriptionController.js` |
+| Event processing | `backend/src/services/revenueCatService.js` |
+| Pro tier service | `backend/src/services/subscriptionService.js` |
+| Migration | `backend/db/migrations/020_phase26_subscriptions_edge.sql` |
+| Flutter SDK | `mobile/lib/services/subscription_service.dart` |
+
+```
+POST /api/v1/webhooks/revenuecat     # RevenueCat → upgrade Pro tier
+GET  /api/v1/subscription/entitlements
+POST /api/v1/subscription/sync       # Client receipt sync
+```
+
+Pro tier grants **unlimited energy** (`9999`) and **3D avatar access**.
+
+### Edge AI / NPU inference
+
+| Component | Path |
+|-----------|------|
+| Inference service | `mobile/lib/services/edge_inference_service.dart` |
+| Platform channel | `mobile/lib/services/edge_inference_platform.dart` |
+| Quantization docs | `mobile/native/edge_inference/README.md` |
+
+Priority: ONNX INT8 (CoreML / Hexagon) → OS NPU → cloud API.
+
+### Zero-touch maintenance
+
+| Component | Path |
+|-----------|------|
+| Renovate config | `renovate.json` |
+| Auto-merge CI | `.github/workflows/renovate-auto-merge.yml` |
+| Maintenance handbook | `MAINTENANCE_HANDBOOK.md` |
+| Dead-code audit | `scripts/dead_code_audit.sh` |
+| Branch lock | `scripts/lock_main_branch.sh` |
+
+```bash
+chmod +x scripts/dead_code_audit.sh scripts/lock_main_branch.sh
+./scripts/dead_code_audit.sh
+./scripts/lock_main_branch.sh
+```
+

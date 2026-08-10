@@ -1,0 +1,63 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":automergePatch",
+    "group:allNonMajor"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 6am on Monday"],
+  "timezone": "UTC",
+  "prConcurrentLimit": 5,
+  "platformAutomerge": true,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "packageRules": [
+    {
+      "description": "Auto-merge patch updates after CI passes",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Group minor Node.js backend updates",
+      "matchPaths": ["backend/**"],
+      "matchManagers": ["npm"],
+      "groupName": "backend npm dependencies"
+    },
+    {
+      "description": "Group minor dashboard updates",
+      "matchPaths": ["dashboard/**"],
+      "matchManagers": ["npm"],
+      "groupName": "dashboard npm dependencies"
+    },
+    {
+      "description": "Group Flutter pub updates",
+      "matchPaths": ["mobile/**"],
+      "matchManagers": ["pub"],
+      "groupName": "flutter pub dependencies"
+    },
+    {
+      "description": "Group GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Require manual review for major bumps",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    },
+    {
+      "description": "Pin Flutter SDK in CI — review manually",
+      "matchPackageNames": ["flutter"],
+      "enabled": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  }
+}

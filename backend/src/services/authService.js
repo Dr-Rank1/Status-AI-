@@ -12,6 +12,7 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '7d';
 function sanitizeUser(row) {
   return {
     id: row.id,
+    tenant_id: row.tenant_id,
     username: row.username,
     email: row.email,
     display_name: row.display_name,
@@ -39,7 +40,7 @@ export function signToken(user) {
     return hybrid.token;
   }
   return jwt.sign(
-    { userId: user.id, username: user.username },
+    { userId: user.id, username: user.username, tenantId: user.tenant_id },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN },
   );
@@ -50,7 +51,7 @@ export function signTokenWithPQ(user) {
     return signHybridToken(user);
   }
   return {
-    token: jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN }),
+    token: jwt.sign({ userId: user.id, username: user.username, tenantId: user.tenant_id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN }),
     pqSignature: null,
     pqAlgorithm: null,
   };
@@ -63,9 +64,9 @@ export function verifyToken(token, pqSignature = null) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-export async function registerUser({ username, email, password, displayName }) {
-  if (!username || !email || !password || !displayName) {
-    throw new AppError('username, email, password, and displayName are required', 400, 'VALIDATION_ERROR');
+export async function registerUser({ username, email, password, displayName, tenantId }) {
+  if (!username || !email || !password || !displayName || !tenantId) {
+    throw new AppError('username, email, password, displayName, and tenantId are required', 400, 'VALIDATION_ERROR');
   }
 
   if (password.length < 8) {
@@ -76,11 +77,11 @@ export async function registerUser({ username, email, password, displayName }) {
 
   try {
     const { rows } = await query(
-      `INSERT INTO users (username, email, password_hash, display_name)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, display_name, avatar_url, bio, reputation,
+      `INSERT INTO users (username, email, password_hash, display_name, tenant_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, tenant_id, username, email, display_name, avatar_url, bio, reputation,
                  follower_count, following_count, is_admin, created_at`,
-      [username.toLowerCase(), email.toLowerCase(), passwordHash, displayName]
+      [username.toLowerCase(), email.toLowerCase(), passwordHash, displayName, tenantId]
     );
 
     await ensureEnergyState(rows[0].id);
@@ -104,16 +105,16 @@ export async function registerUser({ username, email, password, displayName }) {
   }
 }
 
-export async function loginUser({ email, password }) {
-  if (!email || !password) {
-    throw new AppError('email and password are required', 400, 'VALIDATION_ERROR');
+export async function loginUser({ email, password, tenantId }) {
+  if (!email || !password || !tenantId) {
+    throw new AppError('email, password, and tenantId are required', 400, 'VALIDATION_ERROR');
   }
 
   const { rows } = await query(
-    `SELECT id, username, email, password_hash, display_name, avatar_url, bio,
+    `SELECT id, tenant_id, username, email, password_hash, display_name, avatar_url, bio,
             reputation, follower_count, following_count, is_admin, created_at
-     FROM users WHERE email = $1 OR username = $1`,
-    [email.toLowerCase()]
+     FROM users WHERE tenant_id = $1 AND (email = $2 OR username = $2)`,
+    [tenantId, email.toLowerCase()]
   );
 
   if (rows.length === 0) {
@@ -139,13 +140,17 @@ export async function loginUser({ email, password }) {
   return { user, token: auth.token, pqSignature: auth.pqSignature, pqAlgorithm: auth.pqAlgorithm };
 }
 
-export async function getUserById(userId) {
-  const { rows } = await query(
-    `SELECT id, username, email, display_name, avatar_url, bio, reputation,
-            follower_count, following_count, is_admin, created_at
-     FROM users WHERE id = $1`,
-    [userId]
-  );
+export async function getUserById(userId, tenantId = null) {
+  const params = [userId];
+  let sql = `SELECT id, tenant_id, username, email, display_name, avatar_url, bio, reputation,
+                    follower_count, following_count, is_admin, created_at
+             FROM users WHERE id = $1`;
+  if (tenantId) {
+    params.push(tenantId);
+    sql += ` AND tenant_id = $2`;
+  }
+
+  const { rows } = await query(sql, params);
 
   return rows[0] ? sanitizeUser(rows[0]) : null;
 }

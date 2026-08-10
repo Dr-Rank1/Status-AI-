@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../services/feature_flag_service.dart';
+import '../services/subscription_service.dart';
 import 'character_3d_viewer.dart';
 
-/// 3D avatar viewer gated behind PostHog `enable-3d-avatars` feature flag.
+/// 3D avatar viewer gated behind Pro subscription or PostHog `enable-3d-avatars` flag.
 class GatedCharacter3DViewer extends StatefulWidget {
   const GatedCharacter3DViewer({
     super.key,
@@ -28,7 +29,12 @@ class _GatedCharacter3DViewerState extends State<GatedCharacter3DViewer> {
   @override
   void initState() {
     super.initState();
-    _enabledFuture = FeatureFlagService.instance.is3dAvatarsEnabled();
+    _enabledFuture = _resolveAccess();
+  }
+
+  Future<bool> _resolveAccess() async {
+    if (subscriptionService.isPro) return true;
+    return FeatureFlagService.instance.is3dAvatarsEnabled();
   }
 
   @override
