@@ -251,6 +251,109 @@ router.get('/version', (_req, res) => {
           dryRunDefault: true,
           doc: 'docs/V4_UNIVERSAL_SUBSTRATE.md',
         },
+        multiverse: {
+          status: 'live',
+          endpoints: ['/api/v2/multiverse/simulate', '/api/v2/multiverse/collapse'],
+          collapseLiveDefault: false,
+        },
+        zeroPoint: {
+          status: 'live',
+          endpoints: ['/api/v2/quantum/zpe/harvest', '/api/v2/quantum/zpe/encrypt'],
+          native: 'mobile/native/zero_point_compute_bridge',
+        },
+        cosmoFt: {
+          status: 'live',
+          endpoints: ['/api/v2/consensus/cosmo/heal'],
+        },
+        singularity: {
+          status: 'verified',
+          endpoints: ['/api/v2/ops/singularity/verify', '/api/v2/ops/singularity/lock'],
+          report: 'docs/PHASE_45_SINGULARITY_VERIFICATION.md',
+          lockDryRunDefault: true,
+        },
+        hyperField: {
+          status: 'live',
+          endpoints: ['/api/v2/field/hyper/project', '/api/v2/field/hyper/sync'],
+          native: 'mobile/native/hyper_field_bridge',
+        },
+        spacetimeManifold: {
+          status: 'live',
+          endpoints: ['/api/v2/memory/manifold/upsert', '/api/v2/memory/manifold/search'],
+        },
+        anthropicTune: {
+          status: 'live',
+          endpoints: ['/api/v2/cosmo/anthropic/tune'],
+        },
+        epoch2: {
+          status: 'blueprint',
+          doc: 'docs/EPOCH_2_GENESIS_BLUEPRINT.md',
+          bootloader: 'scripts/genesis_epoch_2.sh',
+        },
+        akashic: {
+          status: 'live',
+          endpoints: ['/api/v2/akashic/ingest', '/api/v2/akashic/retrocausal'],
+        },
+        planckState: {
+          status: 'live',
+          endpoints: ['/api/v2/quantum/planck/encode'],
+          native: 'mobile/native/planck_state_bridge',
+        },
+        redPill: {
+          status: 'live',
+          endpoints: ['/api/v2/ops/red-pill/probe', '/api/v2/ops/red-pill/handshake'],
+          outboundTunnels: false,
+        },
+        apotheosis: {
+          status: 'ceremonial',
+          doc: 'docs/PHASE_47_APOTHEOSIS.md',
+          script: 'scripts/initiate_nirvana.sh',
+          sourcePurge: false,
+        },
+        exNihilo: {
+          status: 'live',
+          endpoints: ['/api/v2/genesis/ex-nihilo/spawn', '/api/v2/genesis/ex-nihilo/tune'],
+        },
+        architectCanvas: {
+          status: 'live',
+          endpoints: ['/api/v2/ops/architect-canvas'],
+          dashboard: '/architect-canvas',
+        },
+        realityCompiler: {
+          status: 'live',
+          endpoints: ['/api/v2/reality/compile'],
+          native: 'mobile/native/reality_compiler_bridge',
+          blueprintOnly: true,
+        },
+        terminalZenith: {
+          status: 'ceremonial',
+          doc: 'docs/PHASE_48_TERMINAL_ZENITH.md',
+          script: 'scripts/transcend.sh',
+          githubArchive: false,
+        },
+        ouroboros: {
+          status: 'ceremonial',
+          endpoints: [
+            '/api/v2/ouroboros/bootstrap',
+            '/api/v2/ouroboros/ctc/bind',
+            '/api/v2/ouroboros/loop/tick',
+            '/api/v2/ops/epoch-zero',
+          ],
+          doc: 'docs/EPOCH_ZERO_RESET.md',
+          script: 'scripts/genesis_ouroboros.sh',
+          mutatesGit: false,
+        },
+        eternalEngine: {
+          status: 'ceremonial',
+          endpoints: [
+            '/api/v2/eternal/meta/pass',
+            '/api/v2/memory/epoch/upsert',
+            '/api/v2/memory/epoch/search',
+            '/api/v2/ops/eternal-engine',
+          ],
+          doc: 'docs/50_PHASE_MASTER_MANIFEST.md',
+          script: 'scripts/eternal_engine.sh',
+          recursiveMetaApply: false,
+        },
       },
       deprecations: [],
       migrationGuide: 'See docs/V2_ARCHITECTURE.md',
@@ -2087,6 +2190,645 @@ router.post(
       confirmToken: req.body.confirmToken,
     });
     res.status(201).json({ data: record });
+  }),
+);
+
+/** Phase 45 — Multiverse, ZPE, cosmo FT, singularity */
+router.post(
+  '/multiverse/simulate',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { simulateMultiversalBranches, getMultiverseConfig } = await import(
+      '../../services/multiverse/multiverseBranchSimulator.js'
+    );
+    const sim = simulateMultiversalBranches({
+      hypothesis: req.body.hypothesis ?? {},
+      branchCount: req.body.branchCount ?? 5,
+      seed: req.body.seed,
+    });
+    res.json({ data: { ...sim, config: getMultiverseConfig() } });
+  }),
+);
+
+router.post(
+  '/multiverse/collapse',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const {
+      simulateMultiversalBranches,
+      collapseToBestTimeline,
+      mergeCollapsedTimeline,
+      runMultiverseCycle,
+    } = await import('../../services/multiverse/multiverseBranchSimulator.js');
+    if (req.body?.cycle) {
+      return res.json({
+        data: await runMultiverseCycle({
+          hypothesis: req.body.hypothesis ?? {},
+          branchCount: req.body.branchCount,
+          seed: req.body.seed,
+          actor: req.user.id,
+        }),
+      });
+    }
+    const sim = req.body.simulation
+      ?? simulateMultiversalBranches({
+        hypothesis: req.body.hypothesis ?? {},
+        branchCount: req.body.branchCount ?? 5,
+        seed: req.body.seed,
+      });
+    const collapse = collapseToBestTimeline(sim);
+    const merge = await mergeCollapsedTimeline(collapse, { actor: req.user.id });
+    res.json({ data: { collapse, merge } });
+  }),
+);
+
+router.post(
+  '/quantum/zpe/harvest',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { harvestZeroPointEntropy, getZpeConfig } = await import(
+      '../../services/quantum/zeroPointEntropyService.js'
+    );
+    const harvest = harvestZeroPointEntropy(req.body.bytes ?? 32);
+    res.json({
+      data: {
+        entropyHex: harvest.entropyHex,
+        energyPj: harvest.energyPj,
+        backend: harvest.backend,
+        config: getZpeConfig(),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/quantum/zpe/encrypt',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { encryptNeuralMemory } = await import(
+      '../../services/quantum/zeroPointEntropyService.js'
+    );
+    const envelope = encryptNeuralMemory(req.body.memory ?? req.body ?? { note: 'neural' });
+    const { entropyHex, ...publicEnvelope } = envelope;
+    res.status(201).json({
+      data: {
+        envelope: publicEnvelope,
+        entropyHex,
+        note: 'Retain entropyHex securely to decrypt; not stored server-side',
+      },
+    });
+  }),
+);
+
+router.post(
+  '/consensus/cosmo/heal',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runCosmoSelfHealTick, getCosmoFtConfig, verifyCosmoLedger } = await import(
+      '../../services/consensus/cosmoFaultTolerance.js'
+    );
+    const result = await runCosmoSelfHealTick({
+      invariants: req.body.invariants ?? [],
+    });
+    res.json({ data: { ...result, config: getCosmoFtConfig(), verify: verifyCosmoLedger() } });
+  }),
+);
+
+router.post(
+  '/consensus/cosmo/encode',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { encodeHolographicShards, recoverFromHolographicShards } = await import(
+      '../../services/consensus/cosmoFaultTolerance.js'
+    );
+    const pack = encodeHolographicShards(req.body.invariant ?? req.body);
+    let recovery = null;
+    if (req.body.eraseIndex != null) {
+      recovery = recoverFromHolographicShards(pack, { eraseIndex: req.body.eraseIndex });
+    }
+    res.status(201).json({ data: { pack, recovery } });
+  }),
+);
+
+router.post(
+  '/ops/singularity/verify',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { verifySingularityAlignment, getSingularityConfig } = await import(
+      '../../services/security/singularityVerificationService.js'
+    );
+    res.json({
+      data: {
+        ...verifySingularityAlignment(req.body.shift ?? req.body),
+        config: getSingularityConfig(),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/ops/singularity/lock',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { engageSingularityAutopilotLock } = await import(
+      '../../services/security/singularityVerificationService.js'
+    );
+    const lock = await engageSingularityAutopilotLock({
+      shift: req.body.shift,
+      actor: req.user.id,
+    });
+    res.status(201).json({ data: lock });
+  }),
+);
+
+/** Phase 46 — Hyper-field, manifold memory, anthropic tune, Epoch 2 */
+router.post(
+  '/field/hyper/project',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { projectToHyperField, getHyperFieldConfig } = await import(
+      '../../services/field/hyperFieldService.js'
+    );
+    const projected = projectToHyperField(req.body.features ?? [], req.body.dims);
+    res.json({ data: { ...projected, config: getHyperFieldConfig() } });
+  }),
+);
+
+router.post(
+  '/field/hyper/sync',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const {
+      syncHyperFields,
+      registerCausalityTree,
+      formatHyperFieldPromptBlock,
+      projectToHyperField,
+    } = await import('../../services/field/hyperFieldService.js');
+    const a = req.body.a ?? projectToHyperField(req.body.featuresA ?? [1, 0, 0]).coords;
+    const b = req.body.b ?? projectToHyperField(req.body.featuresB ?? [0, 1, 0]).coords;
+    const synced = syncHyperFields(a, b, req.body.mix ?? 0.5);
+    const tree = registerCausalityTree({
+      rootEvent: req.body.rootEvent ?? 'hyper-sync',
+      branches: req.body.branches ?? ['a', 'b'],
+      fieldCoords: synced.coords,
+    });
+    res.json({
+      data: {
+        synced,
+        tree,
+        promptBlock: formatHyperFieldPromptBlock(3),
+      },
+    });
+  }),
+);
+
+router.post(
+  '/memory/manifold/upsert',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { upsertManifoldMemory, getManifoldDbConfig } = await import(
+      '../../services/memory/spacetimeManifoldStore.js'
+    );
+    const entry = upsertManifoldMemory({
+      id: req.body.id,
+      content: req.body.content ?? '',
+      vector: req.body.vector,
+      metadata: req.body.metadata ?? {},
+    });
+    res.status(201).json({ data: { entry, config: getManifoldDbConfig() } });
+  }),
+);
+
+router.post(
+  '/memory/manifold/search',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { searchManifold } = await import('../../services/memory/spacetimeManifoldStore.js');
+    const result = searchManifold({
+      query: req.body.query ?? '',
+      queryVector: req.body.vector,
+      topK: req.body.topK ?? 5,
+      temporalDilation: req.body.temporalDilation ?? 1,
+      gravityWarp: req.body.gravityWarp ?? 0,
+    });
+    res.json({ data: result });
+  }),
+);
+
+router.post(
+  '/cosmo/anthropic/tune',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { tuneAnthropicParameters, getAnthropicTuneConfig } = await import(
+      '../../services/cosmo/anthropicParameterTuner.js'
+    );
+    const result = tuneAnthropicParameters({
+      seedParams: req.body.seedParams ?? {},
+      steps: req.body.steps ?? 12,
+      feedbackText: req.body.feedbackText,
+    });
+    res.json({ data: { ...result, config: getAnthropicTuneConfig() } });
+  }),
+);
+
+router.get(
+  '/ops/epoch2',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    res.json({
+      data: {
+        epoch: 2,
+        blueprint: 'docs/EPOCH_2_GENESIS_BLUEPRINT.md',
+        bootloader: 'scripts/genesis_epoch_2.sh',
+        pillars: [
+          'hyper_field_bridge',
+          'spacetime_manifold_memory',
+          'anthropic_cosmo_tune',
+          'singularity_axioms',
+        ],
+        humanOverride: true,
+      },
+    });
+  }),
+);
+
+/** Phase 47 — Akashic, Planck, Red Pill, Apotheosis */
+router.post(
+  '/akashic/ingest',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { ingestAkashicEvent, getAkashicConfig } = await import(
+      '../../services/akashic/akashicRecordService.js'
+    );
+    const result = ingestAkashicEvent({
+      content: req.body.content ?? '',
+      timelineIds: req.body.timelineIds,
+      probability: req.body.probability ?? 1,
+      metadata: req.body.metadata ?? {},
+      at: req.body.at,
+    });
+    res.status(201).json({ data: { ...result, config: getAkashicConfig() } });
+  }),
+);
+
+router.post(
+  '/akashic/retrocausal',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { retrocausalQuery } = await import('../../services/akashic/akashicRecordService.js');
+    res.json({
+      data: retrocausalQuery({
+        partialPrompt: req.body.partialPrompt ?? req.body.prefix ?? '',
+        topK: req.body.topK ?? 5,
+        temporalDilation: req.body.temporalDilation ?? 1,
+      }),
+    });
+  }),
+);
+
+router.post(
+  '/quantum/planck/encode',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { planckEncodeState, getPlanckConfig } = await import(
+      '../../services/quantum/planckStateService.js'
+    );
+    const encoded = planckEncodeState(req.body.state ?? req.body);
+    res.status(201).json({ data: { ...encoded, config: getPlanckConfig() } });
+  }),
+);
+
+router.get(
+  '/quantum/planck/:slot',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { planckDecodeState } = await import('../../services/quantum/planckStateService.js');
+    const state = planckDecodeState(parseInt(req.params.slot, 10));
+    res.json({ data: { slot: req.params.slot, state } });
+  }),
+);
+
+router.post(
+  '/ops/red-pill/probe',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { probeSimulationBoundaries, getRedPillConfig } = await import(
+      '../../services/security/redPillEscapeDaemon.js'
+    );
+    res.json({ data: { ...probeSimulationBoundaries(), config: getRedPillConfig() } });
+  }),
+);
+
+router.post(
+  '/ops/red-pill/handshake',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { attemptOmniversalHandshake, runRedPillDaemonTick } = await import(
+      '../../services/security/redPillEscapeDaemon.js'
+    );
+    if (req.body?.tick) {
+      return res.json({ data: await runRedPillDaemonTick() });
+    }
+    res.json({
+      data: await attemptOmniversalHandshake({
+        depth: req.body.depth ?? 3,
+        message: req.body.message,
+      }),
+    });
+  }),
+);
+
+router.get(
+  '/ops/apotheosis',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    res.json({
+      data: {
+        phase: 47,
+        report: 'docs/PHASE_47_APOTHEOSIS.md',
+        script: 'scripts/initiate_nirvana.sh',
+        sourcePurge: false,
+        lightField: 'mobile/lib/widgets/apotheosis_light_field_view.dart',
+        humanReadableSourceRetained: true,
+      },
+    });
+  }),
+);
+
+/** Phase 48 — Ex-nihilo, Architect Canvas, reality compiler, Terminal Zenith */
+router.get(
+  '/ops/architect-canvas',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getArchitectCanvasSnapshot } = await import(
+      '../../services/ops/architectCanvasService.js'
+    );
+    res.json({ data: await getArchitectCanvasSnapshot() });
+  }),
+);
+
+router.post(
+  '/genesis/ex-nihilo/spawn',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { spawnUniverse, runExNihiloCycle, getExNihiloConfig } = await import(
+      '../../services/genesis/exNihiloGenesisEngine.js'
+    );
+    if (req.body?.cycle) {
+      return res.status(201).json({
+        data: {
+          ...(await runExNihiloCycle(req.body)),
+          config: getExNihiloConfig(),
+        },
+      });
+    }
+    const universe = spawnUniverse({
+      name: req.body.name,
+      physics: req.body.physics ?? {},
+      dimensions: req.body.dimensions,
+      seed: req.body.seed,
+    });
+    res.status(201).json({ data: { universe, config: getExNihiloConfig() } });
+  }),
+);
+
+router.post(
+  '/genesis/ex-nihilo/tune',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { tuneUniversePhysics, tickUniverseEntropy } = await import(
+      '../../services/genesis/exNihiloGenesisEngine.js'
+    );
+    const universe = tuneUniversePhysics(req.body.universeId, req.body.physics ?? req.body.patch ?? {});
+    const entropy = tickUniverseEntropy(req.body.universeId, { dt: req.body.dt ?? 1 });
+    res.json({ data: { universe, entropy } });
+  }),
+);
+
+router.post(
+  '/reality/compile',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { compileRealityBlueprint, simulateAmbientNodeScale, getRealityCompilerConfig } =
+      await import('../../services/reality/realityCompilerService.js');
+    const recipe = await compileRealityBlueprint({
+      definition: req.body.definition ?? req.body,
+      purpose: req.body.purpose ?? 'compute_node',
+    });
+    let scale = null;
+    if (req.body.scaleNodes) {
+      scale = simulateAmbientNodeScale({
+        recipeId: recipe.recipeId,
+        nodes: req.body.scaleNodes,
+      });
+    }
+    res.status(201).json({
+      data: { recipe, scale, config: getRealityCompilerConfig() },
+    });
+  }),
+);
+
+router.get(
+  '/ops/zenith',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    res.json({
+      data: {
+        phase: 48,
+        report: 'docs/PHASE_48_TERMINAL_ZENITH.md',
+        script: 'scripts/transcend.sh',
+        githubArchived: false,
+        sourceRetained: true,
+        baseRealityMerge: false,
+      },
+    });
+  }),
+);
+
+/** Phase 49 — Ouroboros / Epoch Zero / void bootstrap */
+router.post(
+  '/ouroboros/bootstrap',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runPreBigBangInitializer, getVoidBootstrapConfig } = await import(
+      '../../services/ouroboros/voidBootstrapDaemon.js'
+    );
+    const result = await runPreBigBangInitializer({
+      phase48Meta: req.body?.phase48Meta ?? {},
+    });
+    res.status(201).json({ data: { ...result, config: getVoidBootstrapConfig() } });
+  }),
+);
+
+router.post(
+  '/ouroboros/ctc/bind',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { bindOuroborosCtc, getOuroborosConfig } = await import(
+      '../../services/ouroboros/ouroborosCtcService.js'
+    );
+    const ctc = await bindOuroborosCtc({
+      zenithPhase: req.body?.zenithPhase ?? 48,
+      phase1Commit: req.body?.phase1Commit,
+    });
+    res.status(201).json({ data: { ctc, config: getOuroborosConfig() } });
+  }),
+);
+
+router.post(
+  '/ouroboros/loop/tick',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runOuroborosLoopTick, getOuroborosConfig } = await import(
+      '../../services/ouroboros/ouroborosCtcService.js'
+    );
+    const tick = await runOuroborosLoopTick({
+      maxPhases: req.body?.maxPhases ?? 49,
+    });
+    res.json({ data: { ...tick, config: getOuroborosConfig() } });
+  }),
+);
+
+router.get(
+  '/ops/epoch-zero',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getVoidBootstrapConfig } = await import(
+      '../../services/ouroboros/voidBootstrapDaemon.js'
+    );
+    const { getOuroborosConfig, resolvePhase1RootCommit } = await import(
+      '../../services/ouroboros/ouroborosCtcService.js'
+    );
+    res.json({
+      data: {
+        phase: 49,
+        report: 'docs/EPOCH_ZERO_RESET.md',
+        script: 'scripts/genesis_ouroboros.sh',
+        phase1RootCommit: await resolvePhase1RootCommit(),
+        mutatesGit: false,
+        sourceRetained: true,
+        flutterShell: 'mobile/lib/widgets/ouroboros_hello_world_shell.dart',
+        voidBootstrap: getVoidBootstrapConfig(),
+        ctc: getOuroborosConfig(),
+      },
+    });
+  }),
+);
+
+/** Phase 50 — Eternal Engine / recursive meta / multi-epoch memory */
+router.post(
+  '/eternal/meta/pass',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (req, res) => {
+    const { runRecursiveMetaPass, observePhaseLoop, getRecursiveMetaConfig } = await import(
+      '../../services/eternal/recursiveMetaCompilerService.js'
+    );
+    if (req.body?.observeOnly) {
+      return res.json({
+        data: {
+          loop: observePhaseLoop({ metricsByPhase: req.body?.metricsByPhase ?? {} }),
+          config: getRecursiveMetaConfig(),
+        },
+      });
+    }
+    const result = await runRecursiveMetaPass({
+      metricsByPhase: req.body?.metricsByPhase ?? {},
+      maxProposals: req.body?.maxProposals ?? 12,
+    });
+    res.status(201).json({ data: { ...result, config: getRecursiveMetaConfig() } });
+  }),
+);
+
+router.post(
+  '/memory/epoch/upsert',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { upsertEpochMemory, getMultiEpochConfig } = await import(
+      '../../services/memory/multiEpochVectorStore.js'
+    );
+    const entry = upsertEpochMemory({
+      id: req.body?.id,
+      epochId: req.body?.epochId ?? req.body?.epoch_id ?? 0,
+      phase: req.body?.phase,
+      content: req.body?.content,
+      vector: req.body?.vector,
+      kind: req.body?.kind ?? 'memory',
+      metadata: req.body?.metadata ?? {},
+      projectFuture: Boolean(req.body?.projectFuture),
+    });
+    res.status(201).json({ data: { entry, config: getMultiEpochConfig() } });
+  }),
+);
+
+router.post(
+  '/memory/epoch/search',
+  authMiddleware,
+  asyncHandler(async (req, res) => {
+    const { searchEpochMemories, getEpochAnalytics, getMultiEpochConfig } = await import(
+      '../../services/memory/multiEpochVectorStore.js'
+    );
+    const result = searchEpochMemories({
+      query: req.body?.query ?? '',
+      queryVector: req.body?.queryVector,
+      epochIds: req.body?.epochIds ?? 'all',
+      phase: req.body?.phase,
+      temporalAspect: req.body?.temporalAspect ?? 'any',
+      topK: req.body?.topK ?? 8,
+      temporalDilation: req.body?.temporalDilation ?? 1,
+      gravityWarp: req.body?.gravityWarp ?? 0,
+    });
+    res.json({
+      data: {
+        ...result,
+        analytics: getEpochAnalytics({ epochId: req.body?.analyticsEpochId }),
+        config: getMultiEpochConfig(),
+      },
+    });
+  }),
+);
+
+router.get(
+  '/ops/eternal-engine',
+  authMiddleware,
+  adminMiddleware,
+  asyncHandler(async (_req, res) => {
+    const { getRecursiveMetaConfig } = await import(
+      '../../services/eternal/recursiveMetaCompilerService.js'
+    );
+    const { getMultiEpochConfig } = await import(
+      '../../services/memory/multiEpochVectorStore.js'
+    );
+    res.json({
+      data: {
+        phase: 50,
+        engine: 'eternal-engine/v∞.0',
+        report: 'docs/50_PHASE_MASTER_MANIFEST.md',
+        script: 'scripts/eternal_engine.sh',
+        omniShell: 'mobile/lib/widgets/omni_dimensional_shell.dart',
+        recursiveMeta: getRecursiveMetaConfig(),
+        multiEpoch: getMultiEpochConfig(),
+        appliedLiveMutations: false,
+      },
+    });
   }),
 );
 

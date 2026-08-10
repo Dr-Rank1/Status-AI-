@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.16)
+project(status_reality LANGUAGES CXX)
+add_library(status_reality SHARED src/status_reality.cpp)
+target_include_directories(status_reality PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_features(status_reality PUBLIC cxx_std_17)

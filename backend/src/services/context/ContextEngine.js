@@ -24,6 +24,8 @@ import { distillInfiniteContext } from './contextDistillationService.js';
 import { listRecentTelemetry, formatRoboticsPromptBlock } from '../robotics/ros2McpBridge.js';
 import { optimizeRagPath, tuneDistillationHyperparams } from '../quantum/quantumHybridSolver.js';
 import { observeAlignmentTurn } from '../alignment/syntheticAlignmentBench.js';
+import { formatHyperFieldPromptBlock, registerCausalityTree, projectToHyperField } from '../field/hyperFieldService.js';
+import { searchManifold, upsertManifoldMemory } from '../memory/spacetimeManifoldStore.js';
 
 const BASE_MIN_SCORE = parseFloat(process.env.MEMORY_MIN_SCORE ?? '0.72');
 const BASE_TOP_K = parseInt(process.env.MEMORY_TOP_K ?? '5', 10);
@@ -320,6 +322,64 @@ export class ContextEngine {
         });
       } catch (err) {
         logger.warn(`[ContextEngine] alignment observe skipped: ${err.message}`);
+      }
+    }
+
+    // Phase 46 — hyper-dimensional field + spacetime manifold memory
+    if (process.env.HYPER_FIELD_CONTEXT !== 'false' && userMessageContent) {
+      try {
+        const projected = projectToHyperField(
+          Array.from({ length: 8 }, (_, i) => (userMessageContent.charCodeAt(i % userMessageContent.length) || 0) / 255),
+        );
+        registerCausalityTree({
+          rootEvent: userMessageContent.slice(0, 80),
+          branches: [`turn:${threadId ?? 'n/a'}`],
+          fieldCoords: projected.coords,
+        });
+        enriched.hyperField = projected;
+        enriched.hyperFieldPromptBlock = formatHyperFieldPromptBlock(3);
+        if (enriched.hyperFieldPromptBlock) {
+          enriched.unifiedMemoryPromptBlock = [
+            enriched.unifiedMemoryPromptBlock,
+            enriched.hyperFieldPromptBlock,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+        }
+      } catch (err) {
+        logger.warn(`[ContextEngine] hyper-field skipped: ${err.message}`);
+      }
+    }
+
+    if (process.env.MANIFOLD_MEMORY_CONTEXT !== 'false' && userMessageContent) {
+      try {
+        upsertManifoldMemory({
+          content: userMessageContent.slice(0, 500),
+          metadata: { userId: user.id, characterId: character.id },
+        });
+        const manifold = searchManifold({
+          query: userMessageContent,
+          topK: Math.min(rag.topK, 5),
+          temporalDilation: parseFloat(process.env.MANIFOLD_TEMPORAL_DILATION ?? '1'),
+          gravityWarp: parseFloat(process.env.MANIFOLD_GRAVITY_WARP ?? '0'),
+        });
+        enriched.manifoldMemory = manifold;
+        if (manifold.hits?.length) {
+          enriched.manifoldPromptBlock = [
+            'Spacetime-invariant manifold memories:',
+            ...manifold.hits.map(
+              (h) => `- d=${h.distance.toFixed(3)} ${String(h.content).slice(0, 100)}`,
+            ),
+          ].join('\n');
+          enriched.unifiedMemoryPromptBlock = [
+            enriched.unifiedMemoryPromptBlock,
+            enriched.manifoldPromptBlock,
+          ]
+            .filter(Boolean)
+            .join('\n\n');
+        }
+      } catch (err) {
+        logger.warn(`[ContextEngine] manifold memory skipped: ${err.message}`);
       }
     }
 

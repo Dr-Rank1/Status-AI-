@@ -1260,3 +1260,121 @@ POST /api/v2/ops/genesis-key/rotate
 
 Genesis Key live transfer requires `GENESIS_KEY_TRANSFER=true` and `GENESIS_KEY_CONFIRM`; it never exports cloud root credentials.
 
+## Phase 45 — Multiverse, Zero-Point Entropy, Cosmo FT & Singularity Verification
+
+| Component | Path |
+|-----------|------|
+| Multiversal branching | `backend/src/services/multiverse/multiverseBranchSimulator.js` |
+| Zero-point C++ bridge | `mobile/native/zero_point_compute_bridge/` |
+| ZPE encryption | `backend/src/services/quantum/zeroPointEntropyService.js` |
+| Cosmological FT | `backend/src/services/consensus/cosmoFaultTolerance.js` |
+| Singularity verifier (Rust) | `native/singularity_verify/` |
+| Verification report | `docs/PHASE_45_SINGULARITY_VERIFICATION.md` |
+
+```bash
+POST /api/v2/multiverse/simulate
+POST /api/v2/multiverse/collapse
+POST /api/v2/quantum/zpe/harvest
+POST /api/v2/quantum/zpe/encrypt
+POST /api/v2/consensus/cosmo/heal
+POST /api/v2/ops/singularity/verify
+POST /api/v2/ops/singularity/lock
+```
+
+Multiverse DB merge and singularity lock stay dry-run unless `MULTIVERSE_COLLAPSE_LIVE` / `SINGULARITY_LOCK` are explicitly enabled; kill-switch remains authoritative.
+
+## Phase 46 — Hyper-Field Sync, Spacetime Manifolds, Anthropic Tuning & Epoch 2
+
+| Component | Path |
+|-----------|------|
+| Hyper-field C++ bridge | `mobile/native/hyper_field_bridge/` |
+| Hyper-field service | `backend/src/services/field/hyperFieldService.js` |
+| Manifold memory DB | `backend/src/services/memory/spacetimeManifoldStore.js` |
+| Anthropic cosmo tuner | `backend/src/services/cosmo/anthropicParameterTuner.js` |
+| Epoch 2 blueprint | `docs/EPOCH_2_GENESIS_BLUEPRINT.md` |
+| Epoch 2 bootloader | `scripts/genesis_epoch_2.sh` |
+
+```bash
+POST /api/v2/field/hyper/sync
+POST /api/v2/memory/manifold/search
+POST /api/v2/cosmo/anthropic/tune
+GET  /api/v2/ops/epoch2
+./scripts/genesis_epoch_2.sh
+```
+
+## Phase 47 — Akashic Records, Planck State, Red Pill & Apotheosis
+
+| Component | Path |
+|-----------|------|
+| Akashic / retrocausal | `backend/src/services/akashic/akashicRecordService.js` |
+| Planck C++ bridge | `mobile/native/planck_state_bridge/` |
+| Red Pill daemon | `backend/src/services/security/redPillEscapeDaemon.js` |
+| Light-field UI | `mobile/lib/widgets/apotheosis_light_field_view.dart` |
+| Apotheosis report | `docs/PHASE_47_APOTHEOSIS.md` |
+| Nirvana seal | `scripts/initiate_nirvana.sh` (**does not purge source**) |
+
+```bash
+POST /api/v2/akashic/retrocausal
+POST /api/v2/quantum/planck/encode
+POST /api/v2/ops/red-pill/handshake
+./scripts/initiate_nirvana.sh
+```
+
+`initiate_nirvana.sh` refuses `PURGE_SOURCE=1` and never deletes human-readable code.
+
+## Phase 48 — Ex-Nihilo Genesis, Architect Canvas, Reality Compiler & Terminal Zenith
+
+| Component | Path |
+|-----------|------|
+| Ex-nihilo engine | `backend/src/services/genesis/exNihiloGenesisEngine.js` |
+| Architect Canvas | `dashboard/app/architect-canvas/page.tsx` |
+| Reality compiler C++ | `mobile/native/reality_compiler_bridge/` |
+| Zenith report | `docs/PHASE_48_TERMINAL_ZENITH.md` |
+| Transcend script | `scripts/transcend.sh` (**does not archive GitHub**) |
+
+```bash
+GET  /api/v2/ops/architect-canvas
+POST /api/v2/genesis/ex-nihilo/spawn
+POST /api/v2/reality/compile
+./scripts/transcend.sh
+```
+
+## Phase 49 — Uncaused First Cause, Ouroboros Loop & Epoch Zero Reset
+
+| Component | Path |
+|-----------|------|
+| Void bootstrap daemon | `backend/src/services/ouroboros/voidBootstrapDaemon.js` |
+| CTC / Ouroboros loop | `backend/src/services/ouroboros/ouroborosCtcService.js` |
+| Hello World condensation UI | `mobile/lib/widgets/ouroboros_hello_world_shell.dart` |
+| Epoch Zero report | `docs/EPOCH_ZERO_RESET.md` |
+| Genesis script | `scripts/genesis_ouroboros.sh` (**does not wipe repo / rewrite git**) |
+
+```bash
+POST /api/v2/ouroboros/bootstrap
+POST /api/v2/ouroboros/ctc/bind
+POST /api/v2/ouroboros/loop/tick
+GET  /api/v2/ops/epoch-zero
+./scripts/genesis_ouroboros.sh
+# Optional Flutter condense: OUROBOROS_CONDENSE=1 in mobile/.env
+```
+
+## Phase 50 — Infinite Meta-Engineering Substrate & Universal Eternal Engine (v∞.0)
+
+| Component | Path |
+|-----------|------|
+| Recursive meta-compiler | `backend/src/services/eternal/recursiveMetaCompilerService.js` |
+| Multi-epoch chrono-vector store | `backend/src/services/memory/multiEpochVectorStore.js` |
+| SQL migration | `backend/db/migrations/028_phase50_multi_epoch.sql` |
+| Omni-dimensional Flutter shell | `mobile/lib/widgets/omni_dimensional_shell.dart` |
+| Master manifest | `docs/50_PHASE_MASTER_MANIFEST.md` |
+| Eternal engine script | `scripts/eternal_engine.sh` (**no live mutate / force deploy**) |
+
+```bash
+POST /api/v2/eternal/meta/pass
+POST /api/v2/memory/epoch/upsert
+POST /api/v2/memory/epoch/search
+GET  /api/v2/ops/eternal-engine
+./scripts/eternal_engine.sh
+# Flutter: OMNI_SHELL_MODE=phase1|phase25|phase48 (or in-app Omni toggle)
+```
+

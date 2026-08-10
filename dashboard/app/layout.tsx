@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/agent-economy">Agent Economy</a>
           <a href="/command-center">Command Center</a>
           <a href="/global-brain">Global Brain</a>
+          <a href="/architect-canvas">Architect Canvas</a>
         </nav>
         <main className="container">{children}</main>
       </body>
