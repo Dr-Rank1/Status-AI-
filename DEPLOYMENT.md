@@ -60,6 +60,54 @@ flutter pub outdated
 
 Build numbers auto-increment via `github.run_number` / `CM_BUILD_NUMBER`.
 
+## Production backend (systemd)
+
+| File | Purpose |
+|------|---------|
+| `deploy/status-backend.service` | systemd unit — auto-restart, boot on startup, journalctl logs |
+| `scripts/deploy-backend.sh` | `npm ci`, migrations, service restart |
+| `backend/scripts/run-migrations.sh` | Apply `db/migrations/*.sql` via `DATABASE_URL` |
+| `deploy/prometheus-scrape.example.yml` | Prometheus scrape target for `/metrics` |
+
+```bash
+sudo ./scripts/deploy-backend.sh
+journalctl -u status-backend -f
+curl http://localhost:3000/api/v1/health/ready
+```
+
+Default install path: `/opt/status/backend`. Override with `INSTALL_DIR=/srv/status`.
+
+## Ubuntu desktop (Flutter Linux)
+
+```bash
+cd mobile && bash scripts/init-linux-desktop.sh && flutter run -d linux
+```
+
+Requires `libayatana-appindicator3-dev` for system tray support.
+
+## Automated backups
+
+```bash
+./scripts/backup.sh
+sudo cp deploy/status-backup.cron /etc/cron.d/status-backup
+tail -f /var/log/status-backup.log
+```
+
+Backups land in `/var/backups/status/postgres/` as gzip-compressed dumps. Files older than 30 days are pruned automatically.
+
+## Load & E2E testing
+
+```bash
+k6 run loadtests/k6/rest-api-load.js
+k6 run loadtests/k6/websocket-load.js
+
+cd mobile && flutter test integration_test/app_test.dart \
+  --dart-define=API_BASE_URL=http://localhost:3000/api/v1 \
+  --dart-define=SOCKET_URL=http://localhost:3000
+```
+
+Production CORS: set `CORS_ORIGINS=https://your-app.example` in backend `.env`.
+
 ## Post-merge verification
 
 1. Confirm GitHub Actions workflow passes on `main`

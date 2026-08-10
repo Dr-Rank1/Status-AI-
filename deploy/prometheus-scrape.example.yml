@@ -1,0 +1,16 @@
+# Prometheus scrape config for Status API (Phase 15)
+#
+# Install on the monitoring host, then reload Prometheus:
+#   sudo cp deploy/prometheus-scrape.example.yml /etc/prometheus/targets/status.yml
+#   sudo systemctl reload prometheus
+#
+scrape_configs:
+  - job_name: status-backend
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - localhost:3000
+        labels:
+          service: status-api
+          environment: production

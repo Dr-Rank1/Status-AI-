@@ -14,6 +14,7 @@ import '../models/post.dart';
 import '../models/profile.dart';
 import '../models/session.dart';
 import '../models/live_stream.dart';
+import '../models/spatial.dart';
 import 'auth_storage.dart';
 import 'local_ai_service.dart';
 import 'offline_cache_service.dart';
@@ -769,6 +770,78 @@ class ApiService {
       spent: body['spent'] as int? ?? 0,
       aiPending: body['aiPending'] as bool? ?? false,
     );
+  }
+
+  Future<List<SpatialScene>> fetchSpatialScenes() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/spatial/scenes');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load spatial scenes');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as List<dynamic>;
+    return data.map((e) => SpatialScene.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> saveSpatialScene({
+    required SpatialScene scene,
+    required ProcessedSpatialContext context,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/spatial/scenes');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'characterId': scene.characterId,
+        'sceneKey': scene.sceneKey,
+        'anchorLabel': scene.anchorLabel,
+        'worldPosition': scene.worldPosition,
+        'worldRotation': scene.worldRotation,
+        'scale': scene.scale,
+        'isPersistent': scene.isPersistent,
+        'spatial': context.toApiJson(),
+      }),
+    );
+    _throwIfError(response, 'Failed to save spatial scene');
+  }
+
+  Future<void> submitSpatialContext({
+    required ProcessedSpatialContext context,
+    String? characterId,
+    String? zoneLabel,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/spatial/context');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        if (characterId != null) 'characterId': characterId,
+        'spatial': context.toApiJson(),
+        if (zoneLabel != null) 'zoneLabel': zoneLabel,
+        'residencyRegion': context.residencyRegion,
+      }),
+    );
+    _throwIfError(response, 'Failed to submit spatial context');
+  }
+
+  Future<SpatialReactResult> spatialCharacterReact({
+    required String characterId,
+    required String message,
+    required ProcessedSpatialContext context,
+    String? sceneKey,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/spatial/react');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({
+        'characterId': characterId,
+        'message': message,
+        'spatial': context.toApiJson(),
+        if (sceneKey != null) 'sceneKey': sceneKey,
+      }),
+    );
+    _throwIfError(response, 'Spatial react failed');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return SpatialReactResult.fromJson(body['data'] as Map<String, dynamic>);
   }
 }
 

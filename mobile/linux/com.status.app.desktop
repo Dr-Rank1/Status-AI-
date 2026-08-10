@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Status
+Comment=Social simulation with AI-driven characters
+Exec=status
+Icon=com.status.app
+Terminal=false
+Categories=Network;Chat;
+StartupWMClass=com.status.app

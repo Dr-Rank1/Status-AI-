@@ -2,7 +2,16 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adminMiddleware } from '../middleware/admin.js';
-import { aiRateLimiter } from '../middleware/rateLimit.js';
+import { aiRateLimiter, authRateLimiter, paymentRateLimiter } from '../middleware/rateLimit.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  registerSchema,
+  loginSchema,
+  sendMessageSchema,
+  createPostSchema,
+  refillEnergySchema,
+  replyToPostSchema,
+} from '../validation/schemas.js';
 import { uploadImage as multerUpload, uploadAudio as multerAudio } from '../config/upload.js';
 import * as auth from '../controllers/authController.js';
 import * as users from '../controllers/usersController.js';
@@ -17,16 +26,19 @@ import * as analytics from '../controllers/analyticsController.js';
 import * as groups from '../controllers/groupsController.js';
 import * as live from '../controllers/liveStreamController.js';
 import * as voice from '../controllers/voiceController.js';
+import * as spatial from '../controllers/spatialController.js';
+import { spatialPrivacyMiddleware } from '../middleware/spatialPrivacy.js';
+import { live, ready } from '../controllers/healthController.js';
 
 const router = Router();
 
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'status-api' });
-});
+router.get('/health', live);
+router.get('/health/live', live);
+router.get('/health/ready', asyncHandler(ready));
 
-// Auth (public)
-router.post('/auth/register', asyncHandler(auth.register));
-router.post('/auth/login', asyncHandler(auth.login));
+// Auth (public) — rate limited + validated
+router.post('/auth/register', authRateLimiter, validateBody(registerSchema), asyncHandler(auth.register));
+router.post('/auth/login', authRateLimiter, validateBody(loginSchema), asyncHandler(auth.login));
 
 // Public read routes
 router.get('/users', asyncHandler(users.listUsers));
@@ -61,11 +73,11 @@ router.get('/characters/:id', asyncHandler(characters.getCharacter));
 router.post('/characters/:id/follow', asyncHandler(characters.follow));
 router.delete('/characters/:id/follow', asyncHandler(characters.unfollow));
 
-router.post('/posts', asyncHandler(posts.createPost));
+router.post('/posts', validateBody(createPostSchema), asyncHandler(posts.createPost));
 
-// AI-triggering routes (rate limited)
-router.post('/posts/:id/replies', aiRateLimiter, asyncHandler(posts.replyToPost));
-router.post('/messages', aiRateLimiter, asyncHandler(messages.sendMessage));
+// AI-triggering routes (rate limited + validated)
+router.post('/posts/:id/replies', aiRateLimiter, validateBody(replyToPostSchema), asyncHandler(posts.replyToPost));
+router.post('/messages', aiRateLimiter, validateBody(sendMessageSchema), asyncHandler(messages.sendMessage));
 
 router.get('/messages/threads', asyncHandler(messages.listThreads));
 router.get('/messages/threads/:threadId', asyncHandler(messages.getThreadMessages));
@@ -77,7 +89,7 @@ router.get('/messages/groups/:groupId', asyncHandler(groups.getMessages));
 router.post('/messages/groups/send', aiRateLimiter, asyncHandler(groups.sendGroupMessage));
 
 router.get('/energy', asyncHandler(energy.getMyEnergyState));
-router.post('/energy/refill', asyncHandler(energy.refillEnergy));
+router.post('/energy/refill', paymentRateLimiter, validateBody(refillEnergySchema), asyncHandler(energy.refillEnergy));
 
 router.post('/analytics/events', asyncHandler(analytics.ingestClientEvents));
 
@@ -87,6 +99,15 @@ router.get('/live/sessions/:sessionId', asyncHandler(live.getSession));
 router.post('/live/sessions/:sessionId/chat', asyncHandler(live.sendChat));
 router.post('/live/sessions/:sessionId/super-chat', asyncHandler(live.sendSuperChat));
 router.delete('/live/sessions/:sessionId', asyncHandler(live.endSession));
+
+router.use(spatialPrivacyMiddleware);
+
+router.get('/spatial/scenes', asyncHandler(spatial.listScenes));
+router.get('/spatial/scenes/:sceneKey', asyncHandler(spatial.getScene));
+router.post('/spatial/scenes', asyncHandler(spatial.saveScene));
+router.delete('/spatial/scenes/:sceneKey', asyncHandler(spatial.deleteScene));
+router.post('/spatial/context', asyncHandler(spatial.submitContext));
+router.post('/spatial/react', aiRateLimiter, asyncHandler(spatial.spatialCharacterReact));
 
 // Admin routes
 router.get('/admin/characters', adminMiddleware, asyncHandler(admin.listAllCharacters));

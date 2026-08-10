@@ -56,6 +56,14 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
       ].filter(Boolean).join('\n');
     }
 
+    if (mode === 'spatial_ambient') {
+      return [
+        customSystem,
+        context.spatialContext ?? '',
+        'You are a persistent spatial companion in mixed reality. React to room context briefly.',
+      ].filter(Boolean).join('\n');
+    }
+
     return [customSystem, affinityNote, narrativeBlock(context)].filter(Boolean).join('\n');
   }
 
@@ -115,6 +123,20 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
       .join('\n');
   }
 
+  if (mode === 'spatial_ambient') {
+    return [
+      `You are ${character.name} (@${character.handle}), present as a persistent spatial companion in the user's physical workspace.`,
+      character.bio ? `Bio: ${character.bio}` : '',
+      `Personality tone: ${tone}.`,
+      traits ? `Traits: ${traits}.` : '',
+      context.spatialContext ?? '',
+      'You exist in mixed reality — react to room context, lighting, and proxemic distance.',
+      'Speak briefly (1-3 sentences) as if physically co-present. Never mention sensors or AI.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   if (mode === 'group_dm') {
     return [
       `You are ${character.name} (@${character.handle}) in a group chat with multiple humans and AI characters.`,
@@ -163,6 +185,16 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
       context.audiencePrompt ?? 'Engage your live audience.',
       incomingMessage ? `Live context:\n${incomingMessage}` : '',
       `Speak as ${context.character?.name ?? 'the character'} on live stream now.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  if (mode === 'spatial_ambient') {
+    return [
+      context.spatialContext ?? 'You are in the user\'s workspace.',
+      incomingMessage ? `User says: "${incomingMessage}"` : 'Acknowledge your presence in the room.',
+      `Respond as ${context.character?.name ?? 'the character'} in spatial mixed reality.`,
     ]
       .filter(Boolean)
       .join('\n\n');

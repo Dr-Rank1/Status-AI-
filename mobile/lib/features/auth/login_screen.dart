@@ -96,6 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 32),
                     TextFormField(
+                      key: const Key('e2e_login_email'),
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
@@ -108,6 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
+                      key: const Key('e2e_login_password'),
                       controller: _passwordController,
                       obscureText: _obscure,
                       decoration: InputDecoration(
@@ -124,6 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
+                      key: const Key('e2e_login_submit'),
                       onPressed: _loading ? null : _login,
                       child: _loading
                           ? const SizedBox(
@@ -135,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextButton(
+                      key: const Key('e2e_register_link'),
                       onPressed: _loading
                           ? null
                           : () {
