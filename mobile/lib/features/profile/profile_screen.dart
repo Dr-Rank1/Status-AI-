@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
+import '../../widgets/character_3d_viewer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -142,6 +143,16 @@ class ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: Column(
                         children: [
+                          Character3DViewer(
+                            modelUrl: Character3DAssets.forCharacter(handle: user.username),
+                            config: const Character3DConfig(
+                              height: 200,
+                              transparentBackground: true,
+                              autoRotate: true,
+                            ),
+                            fallbackLabel: user.displayName,
+                          ),
+                          const SizedBox(height: 12),
                           GestureDetector(
                             onTap: _uploadingAvatar ? null : _changeAvatar,
                             child: Stack(

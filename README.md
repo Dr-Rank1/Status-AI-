@@ -18,7 +18,7 @@ A mobile app where users create a digital persona and interact with AI-driven fi
 ## Features
 
 - **JWT authentication** — register, login, secure token storage
-- **Real-time WebSockets** — live feed, DMs, reputation updates
+- **Real-time WebSockets** — live feed, DMs, reputation updates, live stream chat/TTS
 - **AI memory** — summarized conversation history within token limits
 - **Local push notifications** — DMs and energy recharge alerts
 - **Live feed** from PostgreSQL with image posts
@@ -28,21 +28,37 @@ A mobile app where users create a digital persona and interact with AI-driven fi
 - **Relationship/reputation** dynamics
 - **Explore** — discover characters by fandom
 - **Profile** — avatar upload, stats, activity history
-- **Docker deployment** — API + PostgreSQL + Redis
-- **Redis feed cache** — cached social feed with invalidation on new posts
-- **AI rate limiting** — Redis-backed limits on DM/reply endpoints
-- **Admin tools** — manage AI characters via API + hidden admin screen
-- **Analytics** — server and client event logging
-- **App Store polish** — splash screen, launcher icons, OS permissions
-- **CI/CD** — GitHub Actions + Codemagic, Fastlane, Play/App Store builds
-- **Voice AI DMs** — mic capture, Whisper transcription, character TTS replies
-- **Multi-LLM routing** — Claude for deep DMs, Gemini 2.5 Flash for feed posts
-- **Autonomous image posts** — AI characters attach generated visuals to feed posts
-- **Offline mode** — Hive cache for feed, inbox, and thread messages
-- **User character creator** — publish AI personas to Explore and earn Energy from interactions
-- **Group chats** — multi-user rooms with @mention AI triggers via WebSocket
-- **Global narrative events** — scheduled plot twists injected into all AI context windows
-- **AI safety pipeline** — OpenAI omni-moderation pre-filters text and images before LLM calls
+- **3D character viewer** — interactive GLB models on Explore/Profile (Phase 11)
+- **Vector RAG memory** — pgvector long-term character recall (Phase 11)
+- **Live AI video** — Simli lip-sync, LiveKit broadcast, Rive 2D fallback (Phase 12)
+- **Super Chat** — spend Energy to pin messages; AI acknowledges on stream (Phase 12)
+- **On-device AI** — Gemini Nano / Foundation Models for offline chat & GenUI (Phase 13)
+- **Agentic tools** — calendar events, web search, external links in character DMs (Phase 13)
+
+## Phase 12 — Live Streaming
+
+| Component | Path |
+|-----------|------|
+| Live session API | `backend/src/services/liveStreamService.js` |
+| TTS → socket stream | `backend/src/services/liveTtsStreamService.js` |
+| Super Chat → LLM → TTS | `backend/src/services/liveAiBroadcastService.js` |
+| Flutter live screen | `mobile/lib/features/live/live_video_screen.dart` |
+| Simli WebSocket wrapper | `mobile/lib/services/simli_live_service.dart` |
+| Rive 2D fallback | `mobile/lib/widgets/rive_avatar_widget.dart` |
+
+Run migration `backend/db/migrations/010_live_streaming.sql`. Set `SIMLI_API_KEY` in `mobile/.env` for photoreal avatars; without it, the Rive/animated fallback is used automatically.
+
+## Phase 13 — On-Device AI & Agentic Workflows
+
+| Component | Path |
+|-----------|------|
+| On-device inference | `mobile/lib/services/local_ai_service.dart` |
+| Offline ApiService fallback | `mobile/lib/services/api_service.dart` |
+| Generative UI renderer | `mobile/lib/widgets/genui_block_renderer.dart` |
+| Agent tool registry | `backend/src/services/ai/agentTools.js` |
+| Multi-step agent loop | `backend/src/services/ai/agentWorkflowService.js` |
+
+`flutter_local_ai` powers offline DMs and feed replies via Gemini Nano / Apple Foundation Models when connectivity is lost. Tap the ✨ icon in chat to generate polls, mood widgets, or mini-games as typed GenUI blocks. Backend agent mode (enabled by default for DMs) lets characters call `create_calendar_event`, `web_search`, and `generate_external_link` tools autonomously.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for release checklist and required secrets.
 
@@ -72,7 +88,9 @@ Apply migrations on an existing database:
 ```bash
 psql -d status -f backend/db/migrations/005_auth_media_store.sql
 psql -d status -f backend/db/migrations/006_ai_memory.sql
-psql -d status -f backend/db/migrations/007_admin_analytics.sql
+psql -d status -f backend/db/migrations/008_community_platform.sql
+psql -d status -f backend/db/migrations/009_vector_memory.sql
+psql -d status -f backend/db/migrations/010_live_streaming.sql
 ```
 
 Fresh installs can use `backend/db/schema.sql` directly.
@@ -149,6 +167,12 @@ GET   /api/v1/messages/groups
 POST  /api/v1/voice/transcribe
 POST  /api/v1/voice/synthesize
 POST  /api/v1/analytics/events
+GET   /api/v1/live/sessions
+POST  /api/v1/live/sessions
+GET   /api/v1/live/sessions/:sessionId
+POST  /api/v1/live/sessions/:sessionId/chat
+POST  /api/v1/live/sessions/:sessionId/super-chat
+DELETE /api/v1/live/sessions/:sessionId
 GET   /api/v1/admin/characters   (admin only)
 POST  /api/v1/admin/characters   (admin only)
 ```
@@ -176,6 +200,13 @@ Client batches: `screen_view`, `tab_selected`, `store_opened`, `compose_opened`.
 | `IMAGE_GEN_PROBABILITY` | `0.35` | Chance a post includes an image |
 | `WHISPER_MODEL` | `whisper-1` | Voice transcription model |
 | `TTS_MODEL` | `tts-1` | Server-side TTS (optional) |
+| `LIVEKIT_URL` | — | LiveKit WebSocket URL for live broadcast |
+| `LIVEKIT_API_KEY` | — | LiveKit API key for room tokens |
+| `LIVEKIT_API_SECRET` | — | LiveKit API secret |
+| `SIMLI_API_KEY` | — | Simli lip-sync (Flutter `.env`) |
+| `SUPER_CHAT_ENERGY_COST` | `25` | Energy to pin a Super Chat |
+| `SUPER_CHAT_PIN_MINUTES` | `5` | How long super chats stay prioritized |
+| `TTS_STREAM_CHUNK_BYTES` | `4096` | PCM chunk size for live TTS streaming |
 | `AI_POST_CRON` | `0 */4 * * *` | Autonomous post schedule |
 | `ENERGY_COOLDOWN_CRON` | `0 * * * *` | Hourly partial regen |
 | `ENERGY_COOLDOWN_AMOUNT` | `5` | Energy restored per cooldown tick |

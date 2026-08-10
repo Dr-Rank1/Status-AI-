@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_ai/flutter_local_ai.dart';
 
 import '../../models/messaging.dart';
 import '../../models/session.dart';
@@ -10,6 +11,7 @@ import '../../services/realtime_service.dart';
 import '../../services/voice_interaction_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/character_avatar.dart';
+import '../../widgets/genui_block_renderer.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -51,6 +53,10 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription<ReputationPayload>? _repSub;
   late VoiceInteractionService _voice;
   bool _voiceBusy = false;
+  GenUiModuleSpec? _genUiModule;
+  bool _genUiLoading = false;
+  bool _offlineMode = false;
+  List<Map<String, dynamic>> _agentArtifacts = [];
 
   @override
   void initState() {
@@ -78,6 +84,10 @@ class _ChatScreenState extends State<ChatScreen> {
         _aiTyping = false;
         if (!_messages.any((m) => m.id == message.id)) {
           _messages = [..._messages, message];
+        }
+        final tools = payload['toolResults'];
+        if (tools is List && tools.isNotEmpty) {
+          _agentArtifacts = tools.map((e) => Map<String, dynamic>.from(e as Map)).toList();
         }
       });
       _voice.speak(message.content);
@@ -205,7 +215,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
 
-    if (_energyRemaining < _dmCost) {
+    final online = await widget.api.isOnline();
+    if (online && _energyRemaining < _dmCost) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Need $_dmCost energy (have $_energyRemaining)'),
@@ -220,14 +231,29 @@ class _ChatScreenState extends State<ChatScreen> {
       _sending = true;
       _messages = [..._messages, pending];
       _aiTyping = true;
+      _offlineMode = !online;
     });
     _controller.clear();
     _scrollToBottom();
+
+    final recentLines = _messages
+        .where((m) => !m.isPending)
+        .take(6)
+        .map((m) => '${m.isCharacter ? widget.character.name : 'You'}: ${m.content}')
+        .toList();
 
     try {
       final result = await widget.api.sendMessage(
         characterId: widget.character.id,
         content: text,
+        characterName: widget.character.name,
+        characterBio: widget.character.bio ?? '',
+        recentLines: recentLines,
+        currentEnergy: EnergyState(
+          remaining: _energyRemaining,
+          max: 100,
+          resetAt: DateTime.now().add(const Duration(hours: 24)),
+        ),
       );
 
       if (!mounted) return;
@@ -237,13 +263,29 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages = [
           ..._messages.where((m) => !m.isPending),
           result.userMessage,
+          if (result.characterReply != null) result.characterReply!,
         ];
-        _energyRemaining = result.energy.remaining;
+        if (!result.offline) {
+          _energyRemaining = result.energy.remaining;
+        }
         _sending = false;
         _aiTyping = result.aiPending;
+        _offlineMode = result.offline;
+        if (result.toolResults != null) _agentArtifacts = result.toolResults!;
       });
 
-      widget.onEnergyUpdated(result.energy);
+      if (!result.offline) {
+        widget.onEnergyUpdated(result.energy);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Offline — on-device AI replied locally')),
+        );
+      }
+
+      if (_threadId != null) {
+        await OfflineCacheService.cacheThreadMessages(_threadId!, _messages);
+      }
+
       _scrollToBottom();
 
       if (result.aiPending && !widget.realtime.isConnected) {
@@ -326,6 +368,33 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _generateGenUi() async {
+    final goal = _controller.text.trim();
+    if (goal.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Describe what you want — poll, mood widget, mini-game…')),
+      );
+      return;
+    }
+
+    setState(() => _genUiLoading = true);
+    try {
+      final module = await widget.api.generateGenUiModule(
+        'For a chat with ${widget.character.name}: $goal',
+      );
+      if (!mounted) return;
+      if (module == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('On-device AI unavailable on this device')),
+        );
+        return;
+      }
+      setState(() => _genUiModule = module);
+    } finally {
+      if (mounted) setState(() => _genUiLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -344,9 +413,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   Text(widget.character.name),
                   Text(
-                    '@${widget.character.handle} · $_dmCost energy/msg',
+                    _offlineMode
+                        ? 'Offline · on-device AI'
+                        : '@${widget.character.handle} · $_dmCost energy/msg',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.textMuted,
+                          color: _offlineMode ? AppColors.energy : AppColors.textMuted,
                         ),
                   ),
                 ],
@@ -354,9 +425,32 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            onPressed: _genUiLoading ? null : _generateGenUi,
+            icon: _genUiLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome),
+            tooltip: 'Generate UI block',
+          ),
+        ],
       ),
       body: Column(
         children: [
+          if (_genUiModule != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: GenUiBlockRenderer(module: _genUiModule!),
+            ),
+          if (_agentArtifacts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: _AgentArtifactsBar(artifacts: _agentArtifacts),
+            ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -571,6 +665,59 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                 );
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AgentArtifactsBar extends StatelessWidget {
+  const _AgentArtifactsBar({required this.artifacts});
+
+  final List<Map<String, dynamic>> artifacts;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppColors.surfaceElevated,
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Agent actions',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.accent),
+            ),
+            const SizedBox(height: 6),
+            ...artifacts.map((artifact) {
+              final tool = artifact['tool'] as String? ?? 'tool';
+              final output = artifact['output'] as Map<String, dynamic>? ?? {};
+              String subtitle = '';
+              if (output['event'] != null) {
+                subtitle = output['event']['title'] as String? ?? '';
+              } else if (output['link'] != null) {
+                subtitle = output['link']['title'] as String? ?? output['link']['url'] as String? ?? '';
+              } else if (output['results'] is List && (output['results'] as List).isNotEmpty) {
+                subtitle = (output['results'] as List).first['title'] as String? ?? '';
+              }
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  tool == 'create_calendar_event'
+                      ? Icons.event
+                      : tool == 'web_search'
+                          ? Icons.search
+                          : Icons.link,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                title: Text(tool.replaceAll('_', ' '), style: const TextStyle(fontSize: 13)),
+                subtitle: subtitle.isNotEmpty ? Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+              );
+            }),
           ],
         ),
       ),

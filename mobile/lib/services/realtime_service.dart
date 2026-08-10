@@ -5,6 +5,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config/api_config.dart';
 import '../models/post.dart';
 import '../models/session.dart';
+import '../models/live_stream.dart';
 
 typedef ReputationPayload = Map<String, dynamic>;
 typedef MessagePayload = Map<String, dynamic>;
@@ -17,6 +18,9 @@ class RealtimeService {
   final _energyController = StreamController<EnergyState>.broadcast();
   final _groupMessageController = StreamController<Map<String, dynamic>>.broadcast();
   final _narrativeController = StreamController<Map<String, dynamic>>.broadcast();
+  final _liveChatController = StreamController<Map<String, dynamic>>.broadcast();
+  final _liveTtsController = StreamController<Map<String, dynamic>>.broadcast();
+  final _liveSpeakingController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Post> get onNewPost => _newPostController.stream;
   Stream<MessagePayload> get onNewMessage => _newMessageController.stream;
@@ -24,6 +28,9 @@ class RealtimeService {
   Stream<EnergyState> get onEnergyRecharged => _energyController.stream;
   Stream<Map<String, dynamic>> get onGroupMessage => _groupMessageController.stream;
   Stream<Map<String, dynamic>> get onNarrativeEvent => _narrativeController.stream;
+  Stream<Map<String, dynamic>> get onLiveChat => _liveChatController.stream;
+  Stream<Map<String, dynamic>> get onLiveTtsChunk => _liveTtsController.stream;
+  Stream<Map<String, dynamic>> get onLiveAiSpeaking => _liveSpeakingController.stream;
 
   bool get isConnected => _socket?.connected ?? false;
 
@@ -76,11 +83,34 @@ class RealtimeService {
           _narrativeController.add(Map<String, dynamic>.from(data));
         }
       })
+      ..on('live_chat', (data) {
+        if (data is Map) {
+          _liveChatController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('live_tts_chunk', (data) {
+        if (data is Map) {
+          _liveTtsController.add(Map<String, dynamic>.from(data));
+        }
+      })
+      ..on('live_ai_speaking', (data) {
+        if (data is Map) {
+          _liveSpeakingController.add(Map<String, dynamic>.from(data));
+        }
+      })
       ..connect();
   }
 
   void joinGroup(String groupId) {
     _socket?.emit('join_group', groupId);
+  }
+
+  void joinLive(String sessionId) {
+    _socket?.emit('join_live', sessionId);
+  }
+
+  void leaveLive(String sessionId) {
+    _socket?.emit('leave_live', sessionId);
   }
 
   void disconnect() {
@@ -96,5 +126,8 @@ class RealtimeService {
     _energyController.close();
     _groupMessageController.close();
     _narrativeController.close();
+    _liveChatController.close();
+    _liveTtsController.close();
+    _liveSpeakingController.close();
   }
 }

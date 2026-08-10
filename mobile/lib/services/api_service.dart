@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_local_ai/flutter_local_ai.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -11,21 +13,46 @@ import '../models/messaging.dart';
 import '../models/post.dart';
 import '../models/profile.dart';
 import '../models/session.dart';
+import '../models/live_stream.dart';
 import 'auth_storage.dart';
+import 'local_ai_service.dart';
+import 'offline_cache_service.dart';
 import 'realtime_service.dart';
 
 class ApiService {
-  ApiService({http.Client? client, AuthStorage? authStorage})
-      : _client = client ?? http.Client(),
-        _authStorage = authStorage ?? AuthStorage();
+  ApiService({
+    http.Client? client,
+    AuthStorage? authStorage,
+    LocalAiService? localAi,
+    Connectivity? connectivity,
+  })  : _client = client ?? http.Client(),
+        _authStorage = authStorage ?? AuthStorage(),
+        _localAi = localAi ?? LocalAiService(),
+        _connectivity = connectivity ?? Connectivity();
 
   final http.Client _client;
   final AuthStorage _authStorage;
+  final LocalAiService _localAi;
+  final Connectivity _connectivity;
   String? _token;
+  EnergyState? _lastEnergy;
 
   Future<void> init() async {
     _token = await _authStorage.getToken();
+    await _localAi.init();
   }
+
+  LocalAiService get localAi => _localAi;
+
+  Future<bool> isOnline() async {
+    final results = await _connectivity.checkConnectivity();
+    return !results.contains(ConnectivityResult.none);
+  }
+
+  Future<bool> get isLocalAiAvailable => _localAi.isAvailable;
+
+  Future<GenUiModuleSpec?> generateGenUiModule(String goal) =>
+      _localAi.generateUiModule(goal: goal);
 
   Future<void> setToken(String? token) async {
     _token = token;
@@ -104,7 +131,9 @@ class ApiService {
     final response = await _client.get(uri, headers: await _headers());
     _throwIfError(response, 'Failed to load session');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    return AppSession.fromJson(body['data'] as Map<String, dynamic>);
+    final session = AppSession.fromJson(body['data'] as Map<String, dynamic>);
+    _lastEnergy = session.energy;
+    return session;
   }
 
   Future<String> uploadImage(File file) async {
@@ -164,19 +193,45 @@ class ApiService {
   }
 
   Future<List<Post>> fetchPosts({int limit = 20, String? fandom}) async {
+    if (!await isOnline()) {
+      final cached = OfflineCacheService.loadFeed();
+      if (cached != null) return cached;
+      throw ApiOfflineException('Offline — no cached feed available');
+    }
+
     final query = <String, String>{'limit': '$limit'};
     if (fandom != null) query['fandom'] = fandom;
 
-    final uri = Uri.parse('${ApiConfig.baseUrl}/posts').replace(queryParameters: query);
-    final response = await _client.get(uri, headers: await _headers());
-    _throwIfError(response, 'Failed to load feed');
+    try {
+      final uri = Uri.parse('${ApiConfig.baseUrl}/posts').replace(queryParameters: query);
+      final response = await _client.get(uri, headers: await _headers());
+      _throwIfError(response, 'Failed to load feed');
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final data = body['data'] as List<dynamic>;
-    return data.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = body['data'] as List<dynamic>;
+      return data.map((e) => Post.fromJson(e as Map<String, dynamic>)).toList();
+    } on SocketException {
+      final cached = OfflineCacheService.loadFeed();
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
-  Future<ReplyResult> replyToPost(String postId, String content) async {
+  Future<ReplyResult> replyToPost(
+    String postId,
+    String content, {
+    String? characterName,
+    String? postContent,
+  }) async {
+    if (!await isOnline()) {
+      return _replyToPostOffline(
+        postId: postId,
+        content: content,
+        characterName: characterName,
+        postContent: postContent,
+      );
+    }
+
     final uri = Uri.parse('${ApiConfig.baseUrl}/posts/$postId/replies');
     final response = await _client.post(
       uri,
@@ -275,6 +330,14 @@ class ApiService {
   }
 
   Future<ThreadMessagesResult> fetchThreadMessages(String threadId) async {
+    if (!await isOnline()) {
+      final cached = OfflineCacheService.loadThreadMessages(threadId);
+      if (cached != null) {
+        return ThreadMessagesResult(messages: cached, aiPending: false);
+      }
+      throw ApiOfflineException('Offline — no cached messages for this thread');
+    }
+
     final uri = Uri.parse('${ApiConfig.baseUrl}/messages/threads/$threadId');
     final response = await _client.get(uri, headers: await _headers());
     _throwIfError(response, 'Failed to load messages');
@@ -298,7 +361,22 @@ class ApiService {
   Future<DmSendResult> sendMessage({
     required String characterId,
     required String content,
+    String? characterName,
+    String? characterBio,
+    List<String> recentLines = const [],
+    EnergyState? currentEnergy,
   }) async {
+    if (!await isOnline()) {
+      return _sendMessageOffline(
+        characterId: characterId,
+        content: content,
+        characterName: characterName ?? 'Character',
+        characterBio: characterBio ?? '',
+        recentLines: recentLines,
+        currentEnergy: currentEnergy,
+      );
+    }
+
     final uri = Uri.parse('${ApiConfig.baseUrl}/messages');
     final response = await _client.post(
       uri,
@@ -314,11 +392,95 @@ class ApiService {
     _throwIfError(response, 'Failed to send message');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 
+    final energy = EnergyState.fromJson(body['energy'] as Map<String, dynamic>);
+    _lastEnergy = energy;
+
     return DmSendResult(
       userMessage: DmMessage.fromJson(body['data'] as Map<String, dynamic>),
-      energy: EnergyState.fromJson(body['energy'] as Map<String, dynamic>),
+      energy: energy,
       threadId: body['threadId'] as String?,
       aiPending: body['aiPending'] as bool? ?? true,
+      toolResults: (body['toolResults'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+    );
+  }
+
+  Future<DmSendResult> _sendMessageOffline({
+    required String characterId,
+    required String content,
+    required String characterName,
+    required String characterBio,
+    required List<String> recentLines,
+    EnergyState? currentEnergy,
+  }) async {
+    final now = DateTime.now();
+    final userMessage = DmMessage(
+      id: 'offline-user-${now.millisecondsSinceEpoch}',
+      senderType: 'user',
+      content: content,
+      createdAt: now,
+    );
+
+    final replyText = await _localAi.generateDmReply(
+          characterName: characterName,
+          characterBio: characterBio,
+          userMessage: content,
+          recentLines: recentLines,
+        ) ??
+        "I'm here — we'll sync properly when you're back online.";
+
+    final characterReply = DmMessage(
+      id: 'offline-ai-${now.millisecondsSinceEpoch}',
+      senderType: 'character',
+      content: replyText,
+      createdAt: now.add(const Duration(milliseconds: 400)),
+    );
+
+    final energy = currentEnergy ??
+        _lastEnergy ??
+        EnergyState(
+          remaining: 100,
+          max: 100,
+          resetAt: now.add(const Duration(hours: 24)),
+        );
+
+    return DmSendResult(
+      userMessage: userMessage,
+      characterReply: characterReply,
+      energy: energy,
+      threadId: 'offline-$characterId',
+      aiPending: false,
+      offline: true,
+    );
+  }
+
+  Future<ReplyResult> _replyToPostOffline({
+    required String postId,
+    required String content,
+    String? characterName,
+    String? postContent,
+  }) async {
+    final post = OfflineCacheService.findCachedPost(postId);
+    final aiText = await _localAi.generateFeedReply(
+          characterName: characterName ?? post?.authorName ?? 'Character',
+          postContent: postContent ?? post?.content ?? 'a recent post',
+          userReply: content,
+        ) ??
+        'Interesting — tell me more when we\'re back online.';
+
+    final now = DateTime.now();
+    final energy = _lastEnergy ??
+        EnergyState(
+          remaining: 100,
+          max: 100,
+          resetAt: now.add(const Duration(hours: 24)),
+        );
+
+    return ReplyResult(
+      energy: energy,
+      aiReplyContent: aiText,
+      aiPending: false,
     );
   }
 
@@ -518,6 +680,96 @@ class ApiService {
       mentioned: mentioned,
     );
   }
+
+  Future<List<LiveSession>> fetchLiveSessions() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/live/sessions');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load live sessions');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as List<dynamic>;
+    return data.map((e) => LiveSession.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<LiveSessionCreateResult> createLiveSession({
+    required String characterId,
+    String? title,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/live/sessions');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'characterId': characterId, if (title != null) 'title': title}),
+    );
+    _throwIfError(response, 'Failed to start live session');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as Map<String, dynamic>;
+    return LiveSessionCreateResult(
+      session: LiveSession.fromJson(data['session'] as Map<String, dynamic>),
+      livekitToken: data['livekitToken'] as String,
+      livekitUrl: data['livekitUrl'] as String?,
+      simliFaceId: data['simliFaceId'] as String?,
+    );
+  }
+
+  Future<LiveSessionDetail> fetchLiveSession(String sessionId) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/live/sessions/$sessionId');
+    final response = await _client.get(uri, headers: await _headers());
+    _throwIfError(response, 'Failed to load live session');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = body['data'] as Map<String, dynamic>;
+    final session = LiveSession.fromJson(data['session'] as Map<String, dynamic>);
+    final messages = (data['messages'] as List<dynamic>?)
+            ?.map((e) => LiveChatMessage.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [];
+    return LiveSessionDetail(
+      session: session,
+      livekitToken: data['livekitToken'] as String,
+      livekitUrl: data['livekitUrl'] as String?,
+      messages: messages,
+    );
+  }
+
+  Future<LiveChatMessage> sendLiveChat({
+    required String sessionId,
+    required String content,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/live/sessions/$sessionId/chat');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'content': content}),
+    );
+    _throwIfError(response, 'Failed to send chat');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return LiveChatMessage.fromJson(body['data'] as Map<String, dynamic>);
+  }
+
+  Future<LiveSuperChatResult> sendLiveSuperChat({
+    required String sessionId,
+    required String content,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/live/sessions/$sessionId/super-chat');
+    final response = await _client.post(
+      uri,
+      headers: await _headers(),
+      body: jsonEncode({'content': content}),
+    );
+
+    if (response.statusCode == 409) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw InsufficientEnergyException(body['message'] as String? ?? 'Insufficient energy');
+    }
+
+    _throwIfError(response, 'Failed to send super chat');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return LiveSuperChatResult(
+      message: LiveChatMessage.fromJson(body['data'] as Map<String, dynamic>),
+      energy: EnergyState.fromJson(body['energy'] as Map<String, dynamic>),
+      spent: body['spent'] as int? ?? 0,
+      aiPending: body['aiPending'] as bool? ?? false,
+    );
+  }
 }
 
 class ApiException implements Exception {
@@ -537,6 +789,13 @@ class AuthException implements Exception {
 
 class InsufficientEnergyException implements Exception {
   InsufficientEnergyException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class ApiOfflineException implements Exception {
+  ApiOfflineException(this.message);
   final String message;
   @override
   String toString() => message;

@@ -21,12 +21,14 @@ export function selectProvider({ mode, context = {} }) {
 
   const recentCount = context.recentMessages?.length ?? 0;
   const hasMemory = Boolean(context.memorySummary);
+  const hasVectorMemory = Boolean(context.vectorMemories?.length);
   const incomingLength = context.incomingLength ?? 0;
 
   if (mode === 'dm') {
     const isDeep =
       recentCount >= 4 ||
       hasMemory ||
+      hasVectorMemory ||
       incomingLength > 120;
 
     if (isDeep && hasAnthropic) {

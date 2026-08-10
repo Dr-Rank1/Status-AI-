@@ -1,5 +1,19 @@
 const AI_PROVIDER = (process.env.AI_PROVIDER ?? 'mock').toLowerCase();
 
+function vectorMemoryBlock(context) {
+  const memories = context.vectorMemories;
+  if (!memories?.length) return '';
+  const lines = memories.map((m) => {
+    const score = m.similarity != null ? ` (${Math.round(parseFloat(m.similarity) * 100)}% match)` : '';
+    return `- ${m.content}${score}`;
+  });
+  return [
+    'Relevant long-term memories (vector retrieval):',
+    ...lines,
+    'Use these only when they naturally fit the conversation.',
+  ].join('\n');
+}
+
 function narrativeBlock(context) {
   const event = context.globalNarrative;
   if (!event?.global_prompt) return '';
@@ -31,6 +45,15 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
 
     if (mode === 'group_dm') {
       return [customSystem, affinityNote, narrativeBlock(context), 'Reply in a group chat. 1-3 sentences.'].filter(Boolean).join('\n');
+    }
+
+    if (mode === 'live_broadcast') {
+      return [
+        customSystem,
+        context.audiencePrompt ?? '',
+        'You are hosting a LIVE video broadcast. Acknowledge super chats by viewer name first.',
+        'Respond in 2-4 spoken sentences.',
+      ].filter(Boolean).join('\n');
     }
 
     return [customSystem, affinityNote, narrativeBlock(context)].filter(Boolean).join('\n');
@@ -72,6 +95,20 @@ function buildSystemPrompt({ character, relationship, mode, context = {} }) {
       narrativeBlock(context),
       'Write a reactive social media post about the global event above.',
       '1-2 sentences, in-character, emotionally authentic.',
+      'Never mention being an AI.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (mode === 'live_broadcast') {
+    return [
+      `You are ${character.name} (@${character.handle}) hosting a LIVE video broadcast.`,
+      character.bio ? `Bio: ${character.bio}` : '',
+      `Personality tone: ${tone}.`,
+      traits ? `Traits: ${traits}.` : '',
+      context.audiencePrompt ?? '',
+      'Respond in 2-4 spoken sentences. Acknowledge super chats by viewer name first.',
       'Never mention being an AI.',
     ]
       .filter(Boolean)
@@ -121,6 +158,16 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
     ].join('\n');
   }
 
+  if (mode === 'live_broadcast') {
+    return [
+      context.audiencePrompt ?? 'Engage your live audience.',
+      incomingMessage ? `Live context:\n${incomingMessage}` : '',
+      `Speak as ${context.character?.name ?? 'the character'} on live stream now.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
   if (mode === 'group_dm') {
     const userLabel = user?.display_name ?? user?.username ?? 'Someone';
     const history = (context.recentMessages ?? [])
@@ -168,9 +215,11 @@ function buildUserPrompt({ user, context, incomingMessage, mode }) {
     const memoryBlock = context.memorySummary
       ? `Long-term memory (summarized earlier conversation):\n${context.memorySummary}`
       : '';
+    const vectorBlock = vectorMemoryBlock(context);
 
     return [
       memoryBlock,
+      vectorBlock,
       history ? `Recent conversation:\n${history}` : '',
       `${userLabel} says: "${incomingMessage}"`,
       `Respond as ${context.character.name}.`,

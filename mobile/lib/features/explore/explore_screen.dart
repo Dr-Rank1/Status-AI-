@@ -8,7 +8,11 @@ import '../../theme/app_theme.dart';
 import '../../widgets/animated_counter.dart';
 import '../../widgets/async_state.dart';
 import '../../widgets/character_avatar.dart';
+import '../../utils/responsive_layout.dart';
+import '../../widgets/character_3d_viewer.dart';
 import '../characters/character_creator_screen.dart';
+import '../live/live_hub_screen.dart';
+import '../live/live_video_screen.dart';
 import '../messages/chat_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -69,6 +73,53 @@ class ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
       );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
+  }
+
+  Future<void> _openLiveHub() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LiveHubScreen(
+          api: widget.api,
+          realtime: widget.realtime,
+          session: widget.session,
+          onEnergyUpdated: (energy) {
+            widget.onSessionUpdated(widget.session.copyWith(energy: energy));
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _goLive(AiCharacter character) async {
+    try {
+      final result = await widget.api.createLiveSession(
+        characterId: character.id,
+        title: '${character.name} Live',
+      );
+
+      if (!mounted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LiveVideoScreen(
+            api: widget.api,
+            realtime: widget.realtime,
+            sessionId: result.session.id,
+            energyRemaining: widget.session.energy.remaining,
+            onEnergyUpdated: (energy) {
+              widget.onSessionUpdated(widget.session.copyWith(energy: energy));
+            },
+          ),
+        ),
+      );
+
+      await refresh();
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -150,6 +201,12 @@ class ExploreScreenState extends State<ExploreScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    OutlinedButton.icon(
+                      onPressed: _openLiveHub,
+                      icon: const Icon(Icons.live_tv_rounded, size: 18),
+                      label: const Text('Live Now'),
+                    ),
+                    const Spacer(),
                     AnimatedCountLabel(
                       label: 'Reputation',
                       value: widget.session.user.reputation,
@@ -202,9 +259,24 @@ class ExploreScreenState extends State<ExploreScreen> {
                       onRefresh: refresh,
                       color: AppColors.primary,
                       backgroundColor: AppColors.surface,
-                      child: ListView(
-                        children: [
-                          for (final entry in byFandom.entries) ...[
+                      child: ResponsiveContent(
+                        maxWidth: ResponsiveLayout.isDesktop(context) ? 960 : double.infinity,
+                        child: ListView(
+                          children: [
+                            if (ResponsiveLayout.isDesktop(context))
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(0, 12, 0, 8),
+                                child: Character3DViewer(
+                                  modelUrl: Character3DAssets.defaultModel,
+                                  config: const Character3DConfig(
+                                    height: 280,
+                                    transparentBackground: true,
+                                    rotationSpeed: 6,
+                                  ),
+                                  fallbackLabel: 'Explore characters in 3D',
+                                ),
+                              ),
+                            for (final entry in byFandom.entries) ...[
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                               child: Text(
@@ -220,11 +292,13 @@ class ExploreScreenState extends State<ExploreScreen> {
                                 character: character,
                                 onFollow: () => _toggleFollow(character),
                                 onMessage: () => _messageCharacter(character),
+                                onGoLive: () => _goLive(character),
                               ),
                             ),
+                            ],
+                            const SizedBox(height: 24),
                           ],
-                          const SizedBox(height: 24),
-                        ],
+                        ),
                       ),
                     );
                   },
@@ -244,11 +318,13 @@ class _CharacterCard extends StatelessWidget {
     required this.character,
     required this.onFollow,
     required this.onMessage,
+    required this.onGoLive,
   });
 
   final AiCharacter character;
   final VoidCallback onFollow;
   final VoidCallback onMessage;
+  final VoidCallback onGoLive;
 
   @override
   Widget build(BuildContext context) {
@@ -266,6 +342,19 @@ class _CharacterCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Character3DViewer(
+              modelUrl: Character3DAssets.forCharacter(
+                modelUrl: character.model3dUrl,
+                handle: character.handle,
+              ),
+              config: const Character3DConfig(
+                height: 180,
+                transparentBackground: true,
+                rotationSpeed: 10,
+              ),
+              fallbackLabel: character.name,
+            ),
+            const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -335,6 +424,15 @@ class _CharacterCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onGoLive,
+                icon: const Icon(Icons.videocam_rounded, size: 18),
+                label: const Text('Go Live'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(

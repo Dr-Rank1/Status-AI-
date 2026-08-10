@@ -12,6 +12,7 @@ class AiCharacter {
     this.affinity = 0,
     this.isFollowing = false,
     this.threadId,
+    this.model3dUrl,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class AiCharacter {
   final int affinity;
   final bool isFollowing;
   final String? threadId;
+  final String? model3dUrl;
 
   AiCharacter copyWith({
     bool? isFollowing,
@@ -57,6 +59,7 @@ class AiCharacter {
       affinity: json['affinity'] as int? ?? 0,
       isFollowing: json['is_following'] as bool? ?? false,
       threadId: json['thread_id'] as String?,
+      model3dUrl: json['model_3d_url'] as String?,
     );
   }
 }
@@ -221,12 +224,18 @@ class DmSendResult {
     required this.energy,
     this.threadId,
     this.aiPending = false,
+    this.characterReply,
+    this.offline = false,
+    this.toolResults,
   });
 
   final DmMessage userMessage;
   final EnergyState energy;
   final String? threadId;
   final bool aiPending;
+  final DmMessage? characterReply;
+  final bool offline;
+  final List<Map<String, dynamic>>? toolResults;
 }
 
 class FollowResult {

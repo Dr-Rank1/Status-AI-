@@ -3,6 +3,7 @@ import { generateCharacterReply } from './ai/index.js';
 import { getRelationship } from './relationshipService.js';
 import { buildDmContext, buildPostReplyContext } from './contextWindowManager.js';
 import { getActiveGlobalPrompt } from './narrativeEventService.js';
+import { enrichDmContextWithVectorMemories } from './vectorMemoryService.js';
 
 async function getCharacter(characterId) {
   const { rows } = await query(
@@ -56,16 +57,24 @@ export async function generateDmReply({ user, characterId, threadId, userMessage
 
   const globalNarrative = await getActiveGlobalPrompt(character.fandom);
 
-  const result = await generateCharacterReply({
-    character,
-    user,
+  const enrichedContext = await enrichDmContextWithVectorMemories({
+    userId: user.id,
+    characterId,
+    userMessageContent,
     context: {
       character,
       relationship,
       recentMessages,
       memorySummary,
       globalNarrative,
+      threadId,
     },
+  });
+
+  const result = await generateCharacterReply({
+    character,
+    user,
+    context: enrichedContext,
     incomingMessage: userMessageContent,
     mode: 'dm',
   });
