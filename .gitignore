@@ -3,3 +3,12 @@
 .DS_Store
 .idea/
 .vscode/
+
+# AI tooling
+.claude/
+.cursor/
+.cursorrules
+.cursorignore
+.kilo/
+.gemini/
+CLAUDE.md
